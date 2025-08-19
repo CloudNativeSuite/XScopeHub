@@ -1,62 +1,36 @@
 # Architecture
 
-## Core Features
-- Real-time monitoring: high-concurrency writes to TimescaleDB with second-level aggregation queries.
-- Intelligent alerting: extensible engine supporting SQL/PromQL rules and notifications via Webhook/Email/Feishu/Slack.
-- Layered storage: PostgreSQL hot layer plus ClickHouse cold layer for large-scale OLAP.
-- Deep analysis: optional XInsight module providing exploratory analytics and AI assistance.
-- Unified ingestion: REST, gRPC, OpenTelemetry and Arrow Flight interfaces.
-- Open extension: Go-first implementation with optional Rust submodules (Flight channel).
-
-## Architecture Overview
+## Overview
 
 ```mermaid
 graph TD
-  subgraph Collectors
-    N1[node_exporter]
-    N2[process_exporter]
-    N3[DeepFlow Agent]
-    N4[journald/syslog]
-    V[Vector Agent]
-    N1 --> V
-    N2 --> V
-    N3 --> V
-    N4 --> V
+  subgraph Client
+    A[Vector Agent]
   end
 
-  subgraph XScopeHub
-    API[Unified API (REST/gRPC/OTel/Flight)]
-    REG[Schema Registry]
-    ALERT[Alerting Engine]
-    API --> REG
-    API --> ALERT
+  subgraph Transport
+    A --> B[Unified API<br/>(REST / gRPC / OTel / Flight)]
   end
-
-  V --> API
 
   subgraph Storage
-    PG[(PostgreSQL · TimescaleDB)]
-    CH[(ClickHouse · OLAP)]
-    API --> PG
-    API --> CH
+    B --> C1[PostgreSQL<br/>(TimescaleDB + JSONB)]
+    B --> C2[ClickHouse<br/>(OLAP 聚合)]
   end
 
-  subgraph XInsight
-    G[Grafana Dashboards]
-    A[Deep Analysis / AI]
-    PG --> G
-    CH --> G
-    PG --> A
-    CH --> A
+  subgraph Query
+    C1 --> D[Grafana / SQL]
+    C2 --> D
   end
 ```
 
 ## Module Responsibilities
-
 - `gateway`: receive writes, route to PG/CH, validate schema, expose health checks.
 - `registry`: dynamic table registration and JSONB schema metadata management.
 - `pg-writer`: batch writes to TimescaleDB for metrics/events with short retention.
 - `ch-writer`: high-throughput writes to ClickHouse for logs/traces and archival.
-- `alert`: rule parsing and notifications.
-- `insight`: analysis APIs serving Grafana and upstream applications.
 
+## Development & Deployment Notes
+- PoC: use `deployments/docker-compose/poc.yaml` to launch PostgreSQL, ClickHouse, Grafana, and the four core services.
+- Evolution: Helm chart separates Deployment and Service for horizontal scaling; introduce Kafka/NATS when buffering is needed.
+- Query: access data via Grafana; PostgreSQL serves real-time curves/aggregations, ClickHouse handles logs and analytical queries.
+- Schema management: all tables are registered via the schema registry, with gateway-side validation and lazy table creation.

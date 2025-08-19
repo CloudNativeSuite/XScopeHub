@@ -1,3 +1,22 @@
 apiVersion: 1
+datasources:
+  - name: Stratolake-PG
+    type: postgres
+    access: proxy
+    url: pg:5432
+    user: metrics
+    secureJsonData:
+      password: ${PG_PASSWORD}
+    jsonData:
+      database: metrics
+      sslmode: disable
+      timescaledb: true
+      timeColumn: time
 
-# TODO: define Grafana datasources
+  - name: Stratolake-CH
+    type: grafana-clickhouse-datasource
+    access: proxy
+    url: http://clickhouse:8123
+    jsonData:
+      defaultDatabase: default
+      queryTimeout: 60
