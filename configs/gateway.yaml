@@ -1,1 +1,22 @@
-# TODO: configuration for gateway service
+server:
+  http_listen: ":8080"
+
+ingest:
+  enable_rest: true
+  enable_grpc: true
+  enable_otel: true       # OTLP/HTTP 可选
+  enable_flight: false    # 后续扩展
+
+routes:
+  metrics:
+    writer: "pg"          # pg-writer 服务
+  logs:
+    writer: "ch"          # ch-writer 服务
+
+upstreams:
+  pg_writer: "http://pg-writer:8091"
+  ch_writer: "http://ch-writer:8092"
+
+o11y:
+  prometheus: ":9464"
+  trace: "stdout"

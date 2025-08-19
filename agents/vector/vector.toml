@@ -12,15 +12,33 @@ source = '''
 .structured = parse_json!(string!(.message))
 '''
 
+# 方案 A：走网关统一入口（推荐，后续易扩展到 Kafka/Flight）
 [sinks.gateway_metrics]
 type = "http"
 inputs = ["prom"]
-uri = "http://localhost:8080/write/metrics"
+uri = "http://gateway:8080/write/metrics"
 encoding.codec = "json"
 
 [sinks.gateway_logs]
 type = "http"
 inputs = ["jsonify_logs"]
-uri = "http://localhost:8080/write/logs"
+uri = "http://gateway:8080/write/logs"
 encoding.codec = "json"
 
+# 方案 B：直写（PoC/旁路）
+# [sinks.pg]
+# type     = "postgresql"
+# inputs   = ["prom", "jsonify_logs"]
+# endpoint = "postgresql://user:pass@pg:5432/metrics"
+# database = "metrics"
+# table    = "observability_events"
+# mode     = "insert"
+# compression = "zstd"
+
+# [sinks.ch]
+# type     = "clickhouse"
+# inputs   = ["jsonify_logs"]
+# endpoint = "http://clickhouse:8123"
+# database = "default"
+# table    = "logs"
+# compression = "gzip"
