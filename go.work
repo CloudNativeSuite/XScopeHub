@@ -1,0 +1,8 @@
+go 1.22
+
+use ./cmd/gateway
+use ./cmd/registry
+use ./cmd/pg-writer
+use ./cmd/ch-writer
+use ./cmd/alert
+use ./cmd/insight
