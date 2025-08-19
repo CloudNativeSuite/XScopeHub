@@ -1,2 +1,26 @@
-# Vector agent configuration
+[sources.prom]
+type = "prometheus_scrape"
+endpoints = ["http://localhost:9100/metrics"]
+
+[sources.logs]
+type = "journald"
+
+[transforms.jsonify_logs]
+type = "remap"
+inputs = ["logs"]
+source = '''
+.structured = parse_json!(string!(.message))
+'''
+
+[sinks.gateway_metrics]
+type = "http"
+inputs = ["prom"]
+uri = "http://localhost:8080/write/metrics"
+encoding.codec = "json"
+
+[sinks.gateway_logs]
+type = "http"
+inputs = ["jsonify_logs"]
+uri = "http://localhost:8080/write/logs"
+encoding.codec = "json"
 
