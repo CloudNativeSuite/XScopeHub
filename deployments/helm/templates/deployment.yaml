@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xscopehub
+spec:
+  # TODO: define spec
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xscopehub
+  template:
+    metadata:
+      labels:
+        app: xscopehub
+    spec:
+      containers:
+        - name: xscopehub
+          image: xscopehub:latest
+          ports:
+            - containerPort: 80
