@@ -1,1 +1,13 @@
-# TODO: configuration for insight service
+# Configuration for the XInsight service
+vector:
+  dim: 1024
+  index:
+    type: ivfflat
+    lists: 100
+search:
+  service_window: 7d
+  hybrid_weights:
+    vector: 0.7
+    text: 0.3
+graph:
+  name: xinsight
