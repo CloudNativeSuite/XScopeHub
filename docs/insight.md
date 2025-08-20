@@ -38,20 +38,20 @@ analysis workflow across metrics, logs and traces.
 
 *XInsight（深度分析引擎）**的可落地设计：在 PostgreSQL 里用 pgvector 做向量检索，在 AGE（Apache AGE） 做属性图查询，并和 PG/CH 的现有观测数据联动。
 
-目标
+# 目标
 
-用 pgvector 做相似度检索（日志/告警/知识库/变更记录等的语义搜索、相似事故召回）。
+- 用 pgvector 做相似度检索（日志/告警/知识库/变更记录等的语义搜索、相似事故召回）。
+- 用 AGE（PG 图扩展，openCypher）做服务依赖、根因路径、传播链等图分析。
+- 与现有 TimescaleDB（热指标）、ClickHouse（日志/链路/长期指标）协同，形成检索 → 发现 → 溯源闭环。
 
-用 AGE（PG 图扩展，openCypher）做服务依赖、根因路径、传播链等图分析。
+# 一、PG 向量库（pgvector）— 语义检索
 
-与现有 TimescaleDB（热指标）、ClickHouse（日志/链路/长期指标）协同，形成检索 → 发现 → 溯源闭环。
-
-一、PG 向量库（pgvector）— 语义检索
 1) 扩展 & 统一向量表
+
+```sql
 -- 安装扩展
 CREATE EXTENSION IF NOT EXISTS vector;   -- pgvector
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 统一语义对象：日志片段/告警/知识文档/变更记录/Playbook 等
 -- 说明：
 --   object_type: 'log' | 'alert' | 'doc' | 'trace' | 'metric_anomaly' ...
@@ -82,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_semobj_embed_cosine
 ON semantic_objects
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100);
+```
 
 
 备注：若使用 pgvector 新版支持 HNSW，可改为 USING hnsw(embedding vector_cosine_ops) WITH (m=16, ef_construction=200)；不确定版本时就先用 ivfflat。
@@ -89,6 +90,8 @@ WITH (lists = 100);
 2) 语义检索（Top-K）
 -- 传入查询向量 :qvec（由服务端生成）
 -- 限定服务 + 时间窗，减少搜索空间
+
+```
 SELECT id, object_type, service, ts, title, content, labels,
        1 - (embedding <=> :qvec) AS score   -- 余弦相似度的“相似度分数”
 FROM semantic_objects
@@ -96,14 +99,19 @@ WHERE service = :svc
   AND ts >= now() - interval '7 days'
 ORDER BY embedding <=> :qvec               -- 越小越近
 LIMIT 50;
+``
 
-3) 混合检索（向量 + 关键词/全文）
+4) 混合检索（向量 + 关键词/全文）
+
+```sql
 -- 使用全文索引可选：为 content 建 tsvector
 ALTER TABLE semantic_objects
   ADD COLUMN fts tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
 CREATE INDEX IF NOT EXISTS idx_semobj_fts ON semantic_objects USING GIN(fts);
+```
 
 -- 混合：先向量召回TopN，再按文本分值重排（简单示例）
+``
 WITH v AS (
   SELECT id, 1 - (embedding <=> :qvec) AS vscore
   FROM semantic_objects
@@ -117,6 +125,7 @@ SELECT s.id, s.object_type, s.service, s.ts, s.title, s.content,
 FROM v JOIN semantic_objects s USING(id)
 ORDER BY (vscore * 0.7 + tscore * 0.3) DESC
 LIMIT 50;
+```
 
 4) 与 CH/PG 源数据回跳
 
@@ -130,8 +139,11 @@ ref_source + ref_key 保存可定位原始行的信息：
 
 二、PG 图扩展（Apache AGE）— 依赖&根因图
 1) 安装与建图
+
+```
 CREATE EXTENSION IF NOT EXISTS age;
 LOAD 'age';
+``
 
 -- 创建图空间
 SELECT * FROM create_graph('xinsight');
@@ -139,49 +151,46 @@ SELECT * FROM create_graph('xinsight');
 2) 节点/边（建议的属性图模型）
 
 节点（label）：
-
+```
 Service{ name, team, tier, labels }
-
 Host{ name, az, labels }
-
 Endpoint{ path, method, svc }
-
 Incident{ id, ts, severity, summary }
-
 Trace{ trace_id, ts, svc }
+```
 
 边（type）：
 
+```
 (:Service)-[:RUNS_ON]->(:Host)
-
 (:Service)-[:CALLS]->(:Service)（由 Trace 拓扑学习或离线拓扑导入）
-
 (:Service)-[:EXPOSES]->(:Endpoint)
-
 (:Incident)-[:AFFECTS]->(:Service)
-
 (:Trace)-[:BELONGS_TO]->(:Service)
-
 (:Service)-[:RELATED_LOGS]->(:LogTemplate)（可选，若把日志模板也当节点）
+```
 
 3) 基础写入示例（openCypher）
 -- 新建服务与依赖
+```
 SELECT * FROM cypher('xinsight', $$
   MERGE (a:Service {name: 'checkout'})
   MERGE (b:Service {name: 'payment'})
   MERGE (a)-[:CALLS]->(b)
   RETURN a,b
 $$) AS (a agtype, b agtype);
+```
 
-4) 典型图查询
+5) 典型图查询
 
 影响半径（k跳以内）
 
+```
 SELECT * FROM cypher('xinsight', $$
   MATCH p = (s:Service {name: $svc}) -[:CALLS*1..3]-> (t:Service)
   RETURN p
 $$) AS (p agtype);
-
+```
 
 结合指标异常：定位最可能根因服务
 
@@ -191,11 +200,13 @@ $$) AS (p agtype);
 
 服务与主机映射
 
+```
 SELECT * FROM cypher('xinsight', $$
   MATCH (s:Service)-[:RUNS_ON]->(h:Host)
   WHERE s.name = $svc
   RETURN s, h
 $$) AS (s agtype, h agtype);
+```
 
 三、与 Timescale / ClickHouse 的协同
 写入与同步
@@ -219,6 +230,7 @@ XInsight 同步：
 第三跳：拉取 PG/CH 原始数据（面板联动）验证假设。
 
 四、仓库落地（新增/调整）
+```
 xscopehub/
 ├─ cmd/insight/                         # XInsight API: 统一封装 语义检索 + 图查询
 ├─ internal/analytics/vector/           # pgvector DAO、TopK/HYBRID 查询、重排
@@ -231,10 +243,11 @@ xscopehub/
 │  └─ build_call_graph.go               # 从 Traces 构建 CALLS 边，写 AGE
 ├─ configs/insight.yaml                 # 索引参数、模型维度、检索权重、时间窗等
 └─ docs/insight.md                      # 使用说明与查询示例
-
+```
 
 迁移脚本示例（0003_pgvector_semantic_objects.sql）
 
+```
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -257,13 +270,16 @@ CREATE INDEX IF NOT EXISTS idx_semobj_ts ON semantic_objects (ts DESC);
 CREATE INDEX IF NOT EXISTS idx_semobj_service_ts ON semantic_objects (service, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_semobj_embed_cosine
   ON semantic_objects USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+```
 
 
 AGE 初始化示例（0004_age_init.sql）
 
+```
 CREATE EXTENSION IF NOT EXISTS age;
 LOAD 'age';
 SELECT * FROM create_graph('xinsight');
+```
 -- 节点/边在业务侧用 cypher 动态创建（更灵活）
 
 五、查询范式（开箱即用）
