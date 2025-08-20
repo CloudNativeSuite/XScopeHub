@@ -1,9 +1,28 @@
 # Roadmap
 
-- Vector→Gateway→PG/CH write path stabilization (batching, retry, idempotency)
-- Grafana auto provisioning (PG/CH data sources & overview dashboard)
-- Alert engine: SQL/PromQL rules + notification plugins (Webhook/Email/IM)
-- XInsight: analysis operator library (TopN, anomaly detection, causal clue)
-- Storage/computation separation: integrate Kafka/NATS buffering; distributed and HA PG/CH
-- Security: multi-tenancy/authentication/auditing
+The following roadmap is organized by development phases. Each phase represents a two‑week
+cycle with tasks broken down into minimal deliverables.
+
+## Phase 1: Ingestion and Write Path (2 weeks)
+- Stabilize vector→gateway→PG/CH write path
+- Implement batching, retry, and idempotency mechanisms
+
+## Phase 2: Grafana Auto Provisioning (1 week)
+- Auto‑create PG/CH data sources
+- Generate an overview dashboard
+
+## Phase 3: Alert Engine (2 weeks)
+- Support SQL/PromQL rule evaluation
+- Provide notification plugins (Webhook/Email/IM)
+
+## Phase 4: XInsight Analytics (2 weeks)
+- Build operator library (TopN, anomaly detection, causal clue)
+
+## Phase 5: Storage/Computation Separation (2 weeks)
+- Integrate Kafka/NATS buffering
+- Enable distributed and HA PG/CH
+
+## Phase 6: Security (1 week)
+- Implement multi‑tenancy
+- Add authentication and auditing
 
