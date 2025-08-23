@@ -2,25 +2,25 @@
 
 ## Overview
 
-```mermaid
-graph TD
-  subgraph Client
-    A[Vector Agent]
-  end
+```
+[边缘节点/主机/Pod]
+  ├─ Vector（Filelog/Prom/进程指标→统一转 OTLP）
+  │    └─ 本地内存/磁盘缓冲 + 背压
+  │         → OTLP/gRPC →  区域 OTel Gateway（持久化队列/WAL）
+  │         ↘（可选旁路）→ Kafka.<region>.logs_raw / metrics_raw / traces_raw
+  └─ 应用/SDK Trace → 直接 OTLP → 区域 OTel Gateway
 
-  subgraph Transport
-    A --> B[Unified API<br/>(REST / gRPC / OTel / Flight)]
-  end
+[区域网关（多副本，LB 前置）]
+  ├─ OTelcol（接 OTLP/Kafka；file_storage + sending_queue）
+  │    └─ Exporter 扇出：
+  │        → OpenObserve（检索/告警/可视化）
+  │        → Kafka.<region>（旁路重放与 ETL 真源）
 
-  subgraph Storage
-    B --> C1[PostgreSQL<br/>(TimescaleDB + JSONB)]
-    B --> C2[ClickHouse<br/>(OLAP 聚合)]
-  end
-
-  subgraph Query
-    C1 --> D[Grafana / SQL]
-    C2 --> D
-  end
+[存储与分析]
+  ├─ OpenObserve（对象存储/本地盘 + WAL；Logs/Metrics/Traces）
+  ├─ Kafka（RF≥3）→ ETL（Benthos/Redpanda Connect/Flink）
+  │        → PostgreSQL（明细 & 汇总：Timescale/pgvector/AGE/HLL）
+  └─ （可选）cLoki/qryn 或 LGTM 替代检索面
 ```
 
 ## Module Responsibilities
