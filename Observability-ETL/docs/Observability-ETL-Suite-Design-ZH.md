@@ -13,7 +13,7 @@ AGE 活跃调用图：以 service_call_5m 为源，刷新 AGE 图中 10 分钟�
 
 2. 项目目录（合并版）
 
-├─ cmd/etl/                   # 二进制入口/CLI
+├─ etl/cmd/etl/               # 二进制入口/CLI
 │  └─ main.go
 ├─ pkg/
 │  ├─ scheduler/              # 调度器（窗口计算/派发）

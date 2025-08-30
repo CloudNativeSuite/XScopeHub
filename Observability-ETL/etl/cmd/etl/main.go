@@ -6,7 +6,7 @@ import (
 	daemon "github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
 
-	"github.com/xscopehub/xscopehub/internal/etl"
+	"github.com/xscopehub/xscopehub/etl/internal/etl"
 )
 
 var daemonMode bool

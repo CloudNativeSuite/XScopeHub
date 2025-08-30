@@ -19,7 +19,7 @@ Persistence of job runs in PG (etl_job_run) for exactly-once per (job, tenant, w
 
 2. Project Layout (merged)
 
-├─ cmd/etl/                   # CLI entrypoint
+├─ etl/cmd/etl/               # CLI entrypoint
 │  └─ main.go
 ├─ pkg/
 │  ├─ scheduler/              # window calc / enqueue
