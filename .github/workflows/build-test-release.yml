@@ -1,0 +1,148 @@
+name: Build & Test & Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: |
+          rm -f go.sum
+          go mod tidy
+          go mod verify
+      - run: go test ./...
+        if: matrix.arch == 'amd64'
+      - run: |
+          mkdir -p bin
+          go build -o bin/xscopehub-etl ./cmd/etl
+      - run: |
+          NAME="xscopehub-etl-${{ matrix.platform }}-${{ matrix.arch }}"
+          mkdir -p "package/$NAME"
+          cp -r bin "package/$NAME/"
+          tar -C package -czf "package/$NAME.tar.gz" "$NAME"
+          echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xscopehub-etl-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ env.ARTIFACT }}
+
+  unit-tests:
+    needs: build
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+
+  integration-tests:
+    needs: build
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: docker compose up -d --build
+      - run: go test ./...
+      - if: always()
+        run: docker compose down
+
+  fixtures:
+    needs: build
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "TODO: add mock and fixture generation"
+
+  release:
+    needs: [unit-tests, integration-tests, fixtures]
+    if: ${{ always() && needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' && needs.fixtures.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Decide tag (use pushed tag or create daily tag in UTC)
+        id: meta
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            TITLE="Release ${GITHUB_REF_NAME}"
+            PRERELEASE="false"
+          else
+            TAG="daily-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+            TITLE="Daily Build ${GITHUB_RUN_NUMBER} (UTC $(date -u +%Y-%m-%d))"
+            PRERELEASE="true"
+          fi
+          echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${TITLE}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
