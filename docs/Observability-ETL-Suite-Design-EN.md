@@ -18,7 +18,7 @@ Single Go binary: window-aligned scheduling, DAG dependencies, idempotent upsert
 Persistence of job runs in PG (etl_job_run) for exactly-once per (job, tenant, window).
 
 2. Project Layout (merged)
-etl/
+
 ├─ cmd/etl/                   # CLI entrypoint
 │  └─ main.go
 ├─ pkg/
