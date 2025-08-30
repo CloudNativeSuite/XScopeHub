@@ -25,8 +25,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        component: [llm-ops-agent, observe-bridge]
         platform: [linux, macos]
         arch: [amd64, arm64]
+        include:
+          - component: llm-ops-agent
+            go_mod: go.mod
+            workdir: .
+            artifact_prefix: xopsagent
+            build_cmd: go build -o bin/xopsagent ./cmd/agent
+          - component: observe-bridge
+            go_mod: observe-bridge/go.mod
+            workdir: observe-bridge
+            artifact_prefix: observe-bridge
+            build_cmd: |
+              for dir in cmd/*; do
+                name="$(basename "$dir")"
+                go build -o "bin/$name" "./$dir"
+              done
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
       GOARCH: ${{ matrix.arch }}
@@ -35,34 +51,31 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: observe-bridge/go.mod
+          go-version-file: ${{ matrix.go_mod }}
           cache: true
       - run: |
           rm -f go.sum
           go mod tidy
           go mod verify
-        working-directory: observe-bridge
+        working-directory: ${{ matrix.workdir }}
       - run: go test ./...
         if: matrix.arch == 'amd64'
-        working-directory: observe-bridge
+        working-directory: ${{ matrix.workdir }}
       - run: |
           mkdir -p bin
-          for dir in cmd/*; do
-            name="$(basename "$dir")"
-            go build -o "bin/$name" "./$dir"
-          done
-        working-directory: observe-bridge
+          ${{ matrix.build_cmd }}
+        working-directory: ${{ matrix.workdir }}
       - run: |
-          NAME="observe-bridge-${{ matrix.platform }}-${{ matrix.arch }}"
+          NAME="${{ matrix.artifact_prefix }}-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p "package/$NAME"
           cp -r bin "package/$NAME/"
           tar -C package -czf "package/$NAME.tar.gz" "$NAME"
-          echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
-        working-directory: observe-bridge
+          echo "ARTIFACT=$PWD/package/$NAME.tar.gz" >> $GITHUB_ENV
+        working-directory: ${{ matrix.workdir }}
       - uses: actions/upload-artifact@v4
         with:
-          name: observe-bridge-${{ matrix.platform }}-${{ matrix.arch }}
-          path: observe-bridge/${{ env.ARTIFACT }}
+          name: ${{ matrix.artifact_prefix }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ env.ARTIFACT }}
 
   unit-tests:
     needs: build
@@ -70,7 +83,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        component: [llm-ops-agent, observe-bridge]
         platform: [linux, macos]
+        include:
+          - component: llm-ops-agent
+            go_mod: go.mod
+            workdir: .
+            unit_test_cmd: make test
+          - component: observe-bridge
+            go_mod: observe-bridge/go.mod
+            workdir: observe-bridge
+            unit_test_cmd: go test ./...
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
       CGO_ENABLED: 0
@@ -78,32 +101,55 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: observe-bridge/go.mod
+          go-version-file: ${{ matrix.go_mod }}
           cache: true
-      - run: go test ./...
-        working-directory: observe-bridge
+      - run: ${{ matrix.unit_test_cmd }}
+        working-directory: ${{ matrix.workdir }}
 
   integration-tests:
     needs: build
     continue-on-error: true
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [llm-ops-agent, observe-bridge]
+        include:
+          - component: llm-ops-agent
+            go_mod: go.mod
+            workdir: .
+            database_url: postgres://postgres:postgres@localhost:5432/ops?sslmode=disable
+            integration_setup: docker compose -f deploy/docker-compose.yml up -d
+            integration_test_cmd: |
+              go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+              make migrate
+              make test
+            integration_teardown: docker compose -f deploy/docker-compose.yml down
+          - component: observe-bridge
+            go_mod: observe-bridge/go.mod
+            workdir: observe-bridge
+            database_url: ''
+            integration_setup: docker compose up -d --build
+            integration_test_cmd: go test ./...
+            integration_teardown: docker compose down
     env:
       GOOS: linux
       GOARCH: amd64
       CGO_ENABLED: 0
+      DATABASE_URL: ${{ matrix.database_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: observe-bridge/go.mod
+          go-version-file: ${{ matrix.go_mod }}
           cache: true
-      - run: docker compose up -d --build
-        working-directory: observe-bridge
-      - run: go test ./...
-        working-directory: observe-bridge
+      - run: ${{ matrix.integration_setup }}
+        working-directory: ${{ matrix.workdir }}
+      - run: ${{ matrix.integration_test_cmd }}
+        working-directory: ${{ matrix.workdir }}
       - if: always()
-        run: docker compose down
-        working-directory: observe-bridge
+        run: ${{ matrix.integration_teardown }}
+        working-directory: ${{ matrix.workdir }}
 
   fixtures:
     needs: build
@@ -111,17 +157,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        component: [llm-ops-agent, observe-bridge]
         platform: [linux, macos]
         arch: [amd64, arm64]
+        include:
+          - component: llm-ops-agent
+            workdir: .
+          - component: observe-bridge
+            workdir: observe-bridge
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
       GOARCH: ${{ matrix.arch }}
       CGO_ENABLED: 0
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          echo "TODO: add mock and fixture generation"
-        working-directory: observe-bridge
+      - run: echo "TODO: add mock and fixture generation"
+        working-directory: ${{ matrix.workdir }}
 
   release:
     needs: [unit-tests, integration-tests, fixtures]
