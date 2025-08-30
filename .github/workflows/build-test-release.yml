@@ -87,8 +87,8 @@ jobs:
         platform: [linux, macos]
         include:
           - component: llm-ops-agent
-            go_mod: go.mod
-            workdir: .
+            go_mod: llm-ops-agent/go.mod
+            workdir: llm-ops-agent
             unit_test_cmd: make test
           - component: observe-bridge
             go_mod: observe-bridge/go.mod
@@ -116,10 +116,10 @@ jobs:
         component: [llm-ops-agent, observe-bridge]
         include:
           - component: llm-ops-agent
-            go_mod: go.mod
-            workdir: .
+            go_mod: llm-ops-agent/go.mod
+            workdir: llm-ops-agent
             database_url: postgres://postgres:postgres@localhost:5432/ops?sslmode=disable
-            integration_setup: docker compose -f deploy/docker-compose.yml up -d
+            integration_setup: docker compose -f ../deploy/docker-compose.yml up -d
             integration_test_cmd: |
               go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
               make migrate
@@ -162,7 +162,7 @@ jobs:
         arch: [amd64, arm64]
         include:
           - component: llm-ops-agent
-            workdir: .
+            workdir: llm-ops-agent
           - component: observe-bridge
             workdir: observe-bridge
     env:
