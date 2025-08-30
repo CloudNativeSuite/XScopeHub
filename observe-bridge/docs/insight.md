@@ -231,7 +231,7 @@ XInsight 同步：
 
 四、仓库落地（新增/调整）
 ```
-xscopehub/
+observe-bridge/
 ├─ cmd/insight/                         # XInsight API: 统一封装 语义检索 + 图查询
 ├─ internal/analytics/vector/           # pgvector DAO、TopK/HYBRID 查询、重排
 ├─ internal/analytics/graph/            # AGE DAO、常用 Cypher 模板

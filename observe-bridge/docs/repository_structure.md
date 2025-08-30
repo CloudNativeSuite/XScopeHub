@@ -1,7 +1,7 @@
 # Repository Structure
 
 ```
-xscopehub/
+observe-bridge/
 ├─ cmd/                            # service entrypoints
 │  ├─ gateway/                     # unified API (REST/gRPC/OTel/Flight)
 │  ├─ registry/                    # schema registry
