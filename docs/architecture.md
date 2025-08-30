@@ -26,9 +26,6 @@
 ```
 
 — Vector 的缓冲与背压可在出口阻塞时把压力“兜”在边缘；OTel Gateway 通过 file_storage（WAL）+ sending_queue 提供持久化发送队列；OO 侧有内置 WAL 与对象存储落地，整体形成“端—边—域”多级持久化。
-Vector
-OpenTelemetry
-OpenObserve
 
 ### 多区域设计 / 区域内拓扑
 
@@ -49,9 +46,6 @@ OpenObserve
 各区独立：OpenObserve.A/B/C、Kafka.A/B/C、Postgres.A/B/C。
 **主区（A）**提供统一查询/汇总（API Gateway / Query Proxy）；默认“就近或主区”路由。
 跨区镜像：关键数据（*_norm 或抽样 traces）双写到两个 Region，或以 MirrorMaker2 做 Kafka 跨区镜像到中央集群；中央再做归一化与合并视图。
-Amazon Web Services, Inc.
-Confluent
-红帽文档
 
 ### 多级持久化与可重放
 
@@ -60,11 +54,9 @@ Confluent
 1) 多级持久化链
 
 - 边缘层：Vector 磁盘/内存缓冲 + 背压（出口拥塞时不丢，推高边缘队列）。
-Vector
 - 区域网关：OTelcol sending_queue + file_storage（WAL）（进程重启/下游不可用时持久化并重试）。
-OpenTelemetry
 - 旁路总线：Kafka 作为“真源与回放库”（*_raw 主题，RF≥3，acks=all + min.insync.replicas≥2），确保分区内多副本提交后再确认；保留期 ≥ 回放窗口。
-- 落地层：OpenObserve 侧 WAL→对象存储（Parquet），降低落地成本并简化横向扩展。 OpenObserve
+- 落地层：OpenObserve 侧 WAL→对象存储（Parquet），降低落地成本并简化横向扩展。
 
 2) 去重策略
 

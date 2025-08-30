@@ -1,3 +1,3 @@
-# Api
+# API
 
-TODO: Add api documentation.
+TODO: Add API documentation.
