@@ -1,0 +1,5 @@
+image:
+  repository: aiops
+  tag: latest
+service:
+  port: 8080

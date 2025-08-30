@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS idempotency;
+DROP TABLE IF EXISTS outbox;
+DROP TABLE IF EXISTS ops_case;
+DROP TYPE IF EXISTS severity;

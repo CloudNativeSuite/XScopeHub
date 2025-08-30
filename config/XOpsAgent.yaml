@@ -1,0 +1,60 @@
+server:
+  api:
+    listen: "0.0.0.0:8080"
+    response_format: json   # json | ndjson | text
+
+inputs:
+  db:
+    pgurl: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
+  otel:
+    endpoint: "http://openobserve:5080/api/default/"
+    headers:
+      Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206Q29tcGxleFBhc3MxMjMh"
+
+models:
+  embedder:
+    name: "bge-m3"
+    endpoint: "http://127.0.0.1:9000/v1/embeddings"
+  generator:
+    models:
+      - "deepseek-r1:8b"
+    endpoint: "http://127.0.0.1:11434/v1/chat/completions"
+
+outputs:                      # === 动作/投递通道（sinks）===
+  github_pr:
+    enabled: true
+    repo: "svc-design/gitops"           # 或 owner/repo
+    token_env: "GITHUB_TOKEN"           # 从环境变量取 token
+    pr:
+      number: 0                         # 0/缺省表示自动创建 PR
+      title: "XOpsAgent Report {{date}}"
+      branch: "xops/daily-{{date}}"
+      commit_message: "chore(xops): add report {{case_id}}"
+      files:
+        - from: "reports/{{case_id}}.md"
+          to:   "reports/{{case_id}}.md"
+
+  file_report:
+    enabled: true
+    path: "./reports/{{case_id}}.md"    # 支持模板变量
+    format: "markdown"                  # markdown | json
+
+  answer:
+    enabled: true
+    channel: "stdout"                   # stdout | http-response | webhook
+
+  webhook:
+    enabled: false
+    url: "https://example.com/hook"
+    headers:
+      X-Token: "secret"
+
+routing:                      # === 路由规则：什么事件投递到哪些通道 ===
+  default:
+    - answer
+    - file_report
+  on_action:
+    plan.approved:
+      - github_pr
+  on_error:
+    - webhook

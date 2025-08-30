@@ -1,0 +1,70 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: ops-timescaledb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ops
+    ports:
+      - "5432:5432"
+    volumes:
+      - tsdb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: ops-openobserve
+    environment:
+      - ZO_ROOT_USER_EMAIL=admin@example.com
+      - ZO_ROOT_USER_PASSWORD=ComplexPass123!
+      - ZO_DATA_DIR=/data
+    ports:
+      - "5080:5080"          # Web UI / OTLP ingest http://localhost:5080
+    volumes:
+      - oo_data:/data
+
+  otelcol:
+    image: otel/opentelemetry-collector:0.102.1
+    container_name: ops-otelcol
+    volumes:
+      - ./configs/otelcol.yaml:/etc/otelcol/config.yaml:ro
+    command: ["--config=/etc/otelcol/config.yaml"]
+    depends_on:
+      - openobserve
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+
+  redpanda:
+    image: vectorized/redpanda:v23.3.10
+    command: ["redpanda", "start", "--smp", "1", "--memory", "1G", "--overprovisioned", "--node-id", "0", "--check=false", "--kafka-addr", "0.0.0.0:9092", "--advertise-kafka-addr", "redpanda:9092"]
+    ports:
+      - "9092:9092"
+
+  api:
+    build: .
+    container_name: aiops-api
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://postgres:postgres@timescaledb:5432/ops?sslmode=disable
+      - NATS_URL=nats://nats:4222
+      - KAFKA_BROKERS=redpanda:9092
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otelcol:4317
+    ports:
+      - "8080:8080"
+    depends_on:
+      - timescaledb
+      - nats
+      - redpanda
+      - otelcol
+
+volumes:
+  tsdb_data: {}
+  oo_data: {}

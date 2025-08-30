@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops
+spec:
+  selector:
+    app: aiops
+  ports:
+    - port: 80
+      targetPort: {{ .Values.service.port }}

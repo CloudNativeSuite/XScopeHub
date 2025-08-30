@@ -1,0 +1,49 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
+  hostmetrics:
+    scrapers:
+      cpu: {}
+      memory: {}
+      filesystem: {}
+      network: {}
+      load: {}
+  filelog:
+    include: [ /var/log/**/*.log ]
+    start_at: beginning
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+  batch:
+    send_batch_size: 5000
+    timeout: 10s
+  resourcedetection/system:
+    detectors: [system]
+
+exporters:
+  otlphttp/openobserve:
+    endpoint: http://openobserve:5080/api/default/
+    headers:
+      Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206Q29tcGxleFBhc3MxMjMh"  # admin@example.com:ComplexPass123!
+  logging:
+    verbosity: basic
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [resourcedetection/system, memory_limiter, batch]
+      exporters: [otlphttp/openobserve, logging]
+    logs:
+      receivers: [otlp, filelog]
+      processors: [batch]
+      exporters: [otlphttp/openobserve, logging]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/openobserve, logging]
