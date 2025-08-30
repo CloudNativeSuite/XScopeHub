@@ -1,0 +1,16 @@
+name: Custom Builds
+
+permissions:
+  contents: write
+  packages: write
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  Custom:
+    uses: ./.github/workflows/publish.yml
+    with:
+      git_ref: ${{ github.ref }}
+      channel: custom
+    secrets: inherit

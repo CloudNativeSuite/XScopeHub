@@ -1,0 +1,3 @@
+[submodule "openobserve"]
+	path = openobserve
+	url = https://github.com/openobserve/openobserve.git

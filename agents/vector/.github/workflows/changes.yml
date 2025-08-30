@@ -1,0 +1,342 @@
+# This workflow identifies changes between the base and the head ref, for use in
+# other workflows to decide if they should be executed.
+
+name: Identify Changes
+
+on:
+  workflow_call:
+    # These inputs allow the filter action to be able to access the correct refs for
+    # comparison in changes detection, it is required as this is called from the
+    # merge_group context.
+    inputs:
+      base_ref:
+        required: false
+        type: string
+      head_ref:
+        required: false
+        type: string
+      int_tests:
+        required: false
+        type: boolean
+        default: false
+      e2e_tests:
+        required: false
+        type: boolean
+        default: false
+      source:
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      source:
+        value: ${{ jobs.source.outputs.source }}
+      dependencies:
+        value: ${{ jobs.source.outputs.dependencies }}
+      internal_events:
+        value: ${{ jobs.source.outputs.internal_events }}
+      cue:
+        value: ${{ jobs.source.outputs.cue }}
+      component_docs:
+        value: ${{ jobs.source.outputs.component_docs }}
+      markdown:
+        value: ${{ jobs.source.outputs.markdown }}
+      website_only:
+        value: ${{ jobs.source.outputs.website_only }}
+      install:
+        value: ${{ jobs.source.outputs.install }}
+      k8s:
+        value: ${{ jobs.source.outputs.k8s }}
+      amqp:
+        value: ${{ jobs.int_tests.outputs.amqp }}
+      appsignal:
+        value: ${{ jobs.int_tests.outputs.appsignal }}
+      aws:
+        value: ${{ jobs.int_tests.outputs.aws }}
+      axiom:
+        value: ${{ jobs.int_tests.outputs.axiom }}
+      azure:
+        value: ${{ jobs.int_tests.outputs.azure }}
+      clickhouse:
+        value: ${{ jobs.int_tests.outputs.clickhouse }}
+      databend:
+        value: ${{ jobs.int_tests.outputs.databend }}
+      datadog-agent:
+        value: ${{ jobs.int_tests.outputs.datadog-agent }}
+      datadog-logs:
+        value: ${{ jobs.int_tests.outputs.datadog-logs }}
+      datadog-metrics:
+        value: ${{ jobs.int_tests.outputs.datadog-metrics }}
+      datadog-traces:
+        value: ${{ jobs.int_tests.outputs.datadog-traces }}
+      dnstap:
+        value: ${{ jobs.int_tests.outputs.dnstap }}
+      docker-logs:
+        value: ${{ jobs.int_tests.outputs.docker-logs }}
+      elasticsearch:
+        value: ${{ jobs.int_tests.outputs.elasticsearch }}
+      eventstoredb:
+        value: ${{ jobs.int_tests.outputs.eventstoredb }}
+      fluent:
+        value: ${{ jobs.int_tests.outputs.fluent }}
+      gcp:
+        value: ${{ jobs.int_tests.outputs.gcp }}
+      greptimedb:
+        value: ${{ jobs.int_tests.outputs.greptimedb }}
+      humio:
+        value: ${{ jobs.int_tests.outputs.humio }}
+      http-client:
+        value: ${{ jobs.int_tests.outputs.http-client }}
+      influxdb:
+        value: ${{ jobs.int_tests.outputs.influxdb }}
+      kafka:
+        value: ${{ jobs.int_tests.outputs.kafka }}
+      logstash:
+        value: ${{ jobs.int_tests.outputs.logstash }}
+      loki:
+        value: ${{ jobs.int_tests.outputs.loki }}
+      mongodb:
+        value: ${{ jobs.int_tests.outputs.mongodb }}
+      mqtt:
+        value: ${{ jobs.int_tests.outputs.mqtt }}
+      nats:
+        value: ${{ jobs.int_tests.outputs.nats }}
+      nginx:
+        value: ${{ jobs.int_tests.outputs.nginx }}
+      opentelemetry:
+        value: ${{ jobs.int_tests.outputs.opentelemetry }}
+      postgres:
+        value: ${{ jobs.int_tests.outputs.postgres }}
+      prometheus:
+        value: ${{ jobs.int_tests.outputs.prometheus }}
+      pulsar:
+        value: ${{ jobs.int_tests.outputs.pulsar }}
+      redis:
+        value: ${{ jobs.int_tests.outputs.redis }}
+      splunk:
+        value: ${{ jobs.int_tests.outputs.splunk }}
+      webhdfs:
+        value: ${{ jobs.int_tests.outputs.webhdfs }}
+      all-changes-json:
+        value: ${{ jobs.int_tests.outputs.all-changes-json }}
+      # e2e tests
+      e2e-datadog-logs:
+        value: ${{ jobs.e2e_tests.outputs.datadog-logs }}
+      e2e-datadog-metrics:
+        value: ${{ jobs.e2e_tests.outputs.datadog-metrics }}
+      e2e-opentelemetry-logs:
+        value: ${{ jobs.e2e_tests.outputs.opentelemetry-logs }}
+env:
+  BASE_SHA: ${{ inputs.base_ref || (github.event_name == 'merge_group' && github.event.merge_group.base_sha) || github.event.pull_request.base.sha }}
+  HEAD_SHA: ${{ inputs.head_ref || (github.event_name == 'merge_group' && github.event.merge_group.head_sha) || github.event.pull_request.head.sha }}
+
+jobs:
+  # Detects changes that are not specific to integration tests
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: ${{ inputs.source }}
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+      dependencies: ${{ steps.filter.outputs.dependencies }}
+      internal_events: ${{ steps.filter.outputs.internal_events }}
+      cue: ${{ steps.filter.outputs.cue }}
+      component_docs: ${{ steps.filter.outputs.component_docs }}
+      markdown: ${{ steps.filter.outputs.markdown }}
+      install: ${{ steps.filter.outputs.install }}
+      k8s: ${{ steps.filter.outputs.k8s }}
+      website_only: ${{ steps.filter.outputs.website == 'true' && steps.filter.outputs.not_website == 'false' }}
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      id: filter
+      with:
+        base: ${{ env.BASE_SHA }}
+        ref:  ${{ env.HEAD_SHA }}
+        filters: |
+          source:
+            - ".github/workflows/test.yml"
+            - ".cargo/**"
+            - "benches/**"
+            - "lib/**"
+            - "proto/**"
+            - "scripts/**"
+            - "src/**"
+            - "tests/**"
+            - "build.rs"
+            - "Cargo.lock"
+            - "Cargo.toml"
+            - "Makefile"
+            - "rust-toolchain.toml"
+            - "vdev/**"
+          dependencies:
+            - ".cargo/**"
+            - 'Cargo.toml'
+            - 'Cargo.lock'
+            - 'rust-toolchain.toml'
+            - 'Makefile'
+            - 'scripts/cross/**'
+            - "vdev/**"
+          cue:
+            - 'website/cue/**'
+            - "vdev/**"
+          component_docs:
+            - 'scripts/generate-component-docs.rb'
+            - "vdev/**"
+            - 'website/cue/**/base/**.cue'
+          markdown:
+            - '**/**.md'
+            - "vdev/**"
+          internal_events:
+            - 'src/internal_events/**'
+            - "vdev/**"
+          docker:
+            - 'distribution/docker/**'
+            - "vdev/**"
+          install:
+            - ".github/workflows/install-sh.yml"
+            - "distribution/install.sh"
+          k8s:
+            - "src/sources/kubernetes_logs/**"
+            - "lib/k8s-e2e-tests/**"
+            - "lib/k8s-test-framework/**"
+          website:
+            - "website/**"
+          not_website:
+            - "!website/**"
+
+  # Detects changes that are specific to integration tests
+  int_tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: ${{ inputs.int_tests }}
+    outputs:
+      amqp: ${{ steps.filter.outputs.amqp }}
+      appsignal: ${{ steps.filter.outputs.appsignal}}
+      aws: ${{ steps.filter.outputs.aws }}
+      axiom: ${{ steps.filter.outputs.axiom }}
+      azure: ${{ steps.filter.outputs.azure }}
+      clickhouse: ${{ steps.filter.outputs.clickhouse }}
+      databend: ${{ steps.filter.outputs.databend }}
+      datadog-agent: ${{ steps.filter.outputs.datadog-agent }}
+      datadog-logs: ${{ steps.filter.outputs.datadog-logs }}
+      datadog-metrics: ${{ steps.filter.outputs.datadog-metrics }}
+      datadog-traces: ${{ steps.filter.outputs.datadog-traces }}
+      dnstap: ${{ steps.filter.outputs.dnstap }}
+      docker-logs: ${{ steps.filter.outputs.docker-logs }}
+      elasticsearch: ${{ steps.filter.outputs.elasticsearch }}
+      eventstoredb: ${{ steps.filter.outputs.eventstoredb }}
+      fluent: ${{ steps.filter.outputs.fluent }}
+      gcp: ${{ steps.filter.outputs.gcp }}
+      greptimedb: ${{ steps.filter.outputs.greptimedb }}
+      humio: ${{ steps.filter.outputs.humio }}
+      http-client: ${{ steps.filter.outputs.http-client }}
+      influxdb: ${{ steps.filter.outputs.influxdb }}
+      kafka: ${{ steps.filter.outputs.kafka }}
+      logstash: ${{ steps.filter.outputs.logstash }}
+      loki: ${{ steps.filter.outputs.loki }}
+      mongodb: ${{ steps.filter.outputs.mongodb }}
+      mqtt: ${{ steps.filter.outputs.mqtt }}
+      nats: ${{ steps.filter.outputs.nats }}
+      nginx: ${{ steps.filter.outputs.nginx }}
+      opentelemetry: ${{ steps.filter.outputs.opentelemetry }}
+      postgres: ${{ steps.filter.outputs.postgres }}
+      prometheus: ${{ steps.filter.outputs.prometheus }}
+      pulsar: ${{ steps.filter.outputs.pulsar }}
+      redis: ${{ steps.filter.outputs.redis }}
+      splunk: ${{ steps.filter.outputs.splunk }}
+      webhdfs: ${{ steps.filter.outputs.webhdfs }}
+      all-changes-json: ${{ steps.aggregate.outputs.all-changes-json }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # creates a yaml file that contains the filters for each integration,
+      # extracted from the output of the `vdev int ci-paths` command, which
+      # sources the paths from the scripts/integration/.../test.yaml files
+      - name: Create filter rules for integrations
+        run: cargo vdev int ci-paths > int_test_filters.yaml
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          base: ${{ env.BASE_SHA }}
+          ref:  ${{ env.HEAD_SHA }}
+          filters: int_test_filters.yaml
+
+      # This JSON hack was introduced because GitHub Actions does not support dynamic expressions in the
+      # `if` section of a job or step. In return, we can reduce a lot of redundant job configuration in integration.yml.
+      - name: Generate JSON for all outputs
+        id: aggregate
+        run: |
+          json=$(cat <<EOF
+          {
+            "amqp": ${{ steps.filter.outputs.amqp }},
+            "appsignal": ${{ steps.filter.outputs.appsignal }},
+            "aws": ${{ steps.filter.outputs.aws }},
+            "axiom": ${{ steps.filter.outputs.axiom }},
+            "azure": ${{ steps.filter.outputs.azure }},
+            "clickhouse": ${{ steps.filter.outputs.clickhouse }},
+            "databend": ${{ steps.filter.outputs.databend }},
+            "datadog-agent": ${{ steps.filter.outputs.datadog-agent }},
+            "datadog-logs": ${{ steps.filter.outputs.datadog-logs }},
+            "datadog-metrics": ${{ steps.filter.outputs.datadog-metrics }},
+            "datadog-traces": ${{ steps.filter.outputs.datadog-traces }},
+            "dnstap": ${{ steps.filter.outputs.dnstap }},
+            "docker-logs": ${{ steps.filter.outputs.docker-logs }},
+            "elasticsearch": ${{ steps.filter.outputs.elasticsearch }},
+            "eventstoredb": ${{ steps.filter.outputs.eventstoredb }},
+            "fluent": ${{ steps.filter.outputs.fluent }},
+            "gcp": ${{ steps.filter.outputs.gcp }},
+            "greptimedb": ${{ steps.filter.outputs.greptimedb }},
+            "humio": ${{ steps.filter.outputs.humio }},
+            "http-client": ${{ steps.filter.outputs.http-client }},
+            "influxdb": ${{ steps.filter.outputs.influxdb }},
+            "kafka": ${{ steps.filter.outputs.kafka }},
+            "logstash": ${{ steps.filter.outputs.logstash }},
+            "loki": ${{ steps.filter.outputs.loki }},
+            "mongodb": ${{ steps.filter.outputs.mongodb }},
+            "mqtt": ${{ steps.filter.outputs.mqtt }},
+            "nats": ${{ steps.filter.outputs.nats }},
+            "nginx": ${{ steps.filter.outputs.nginx }},
+            "opentelemetry": ${{ steps.filter.outputs.opentelemetry }},
+            "postgres": ${{ steps.filter.outputs.postgres }},
+            "prometheus": ${{ steps.filter.outputs.prometheus }},
+            "pulsar": ${{ steps.filter.outputs.pulsar }},
+            "redis": ${{ steps.filter.outputs.redis }},
+            "splunk": ${{ steps.filter.outputs.splunk }},
+            "webhdfs": ${{ steps.filter.outputs.webhdfs }}
+          }
+          EOF
+          )
+
+          echo "$json" > int_tests_changes.json
+
+      - name: Upload JSON artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: int_tests_changes
+          path: int_tests_changes.json
+
+  # Detects changes that are specific to e2e tests
+  e2e_tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: ${{ inputs.e2e_tests }}
+    outputs:
+      datadog-logs: ${{ steps.filter.outputs.datadog-logs }}
+      datadog-metrics: ${{ steps.filter.outputs.datadog-metrics }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # creates a yaml file that contains the filters for each test,
+      # extracted from the output of the `vdev int ci-paths` command, which
+      # sources the paths from the scripts/integration/.../test.yaml files
+      - name: Create filter rules for e2e tests
+        run: cargo vdev e2e ci-paths > int_test_filters.yaml
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          base: ${{ env.BASE_SHA }}
+          ref:  ${{ env.HEAD_SHA }}
+          filters: int_test_filters.yaml

@@ -1,0 +1,71 @@
+# Changelog
+#
+# Validates that a changelog entry was added.
+# Runs on PRs when:
+#   - opened/re-opened
+#   - new commits pushed
+#   - label is added or removed
+# Runs on merge queues, but just passes, because it is a required check.
+name: Changelog
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+  # Required by GitHub merge queue due to branch protection rules. Should always be successful
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  validate-changelog:
+    permissions:
+      contents: read
+      pull-requests: none
+
+    runs-on: ubuntu-24.04
+
+    env:
+      NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+      SHOULD_RUN: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') && github.event_name != 'merge_group' }}
+
+    steps:
+      - name: Bypass when no‑changelog label is present
+        if: env.NO_CHANGELOG == 'true'
+        run: |
+          echo "'no-changelog' label detected – skipping changelog validation."
+          exit 0
+
+      - name: Merge queue
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          echo "merge_group event – passing without running changelog validation."
+          exit 0
+
+      # Checkout changelog script and changelog.d/ from master
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: env.SHOULD_RUN == 'true'
+        with:
+          ref: master
+          sparse-checkout: |
+            scripts/check_changelog_fragments.sh
+            changelog.d/
+          sparse-checkout-cone-mode: false
+
+      # Checkout PR's changelog.d/ into tmp/
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: env.SHOULD_RUN == 'true'
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: tmp
+          sparse-checkout: changelog.d/
+
+      - name: Run changelog fragment checker
+        if: env.SHOULD_RUN == 'true'
+        run: |
+          # Overwrite changelog.d/*.md
+          rm -rf changelog.d/*.md && mv tmp/changelog.d/*.md changelog.d/
+
+          # Add files and then compare with HEAD instead of origin/master
+          git add changelog.d/
+          MERGE_BASE=HEAD ./scripts/check_changelog_fragments.sh

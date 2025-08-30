@@ -1,0 +1,571 @@
+# Regression Detection Suite
+#
+# This workflow runs under the following conditions:
+#   - Once per day, based on a schedule
+#   - On demand, triggered from https://github.com/vectordotdev/vector/actions/workflows/regression_v2.yml
+#
+# The workflow accepts two optional inputs:
+#   - The baseline SHA:
+#     - If not specified, the SHA from 7 days ago on origin/master is used.
+#   - The comparison SHA:
+#     - If not specified, the current HEAD of origin/master is used.
+#
+# This workflow runs regression detection experiments, performing relative
+# evaluations of the baseline SHA and comparison SHA. The exact SHAs are determined
+# by how the workflow is triggered.
+#
+# The goal is to provide quick feedback on Vector's performance across a variety
+# of configurations, checking if throughput performance has degraded or become
+# more variable in the comparison SHA relative to the baseline SHA.
+#
+# Docker image tags are based on the resolved SHAs.
+
+name: Regression Detection Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline-sha:
+        description: "The SHA to use as the baseline (optional). If not provided, it defaults to the SHA from 7 days ago."
+        required: false
+      comparison-sha:
+        description: "The SHA to use for comparison (optional). If not provided, it defaults to the current HEAD of the origin/master branch."
+        required: false
+  schedule:
+    - cron: '0 7 * * 1' # Runs at 7 AM UTC on Mondays
+
+env:
+  SINGLE_MACHINE_PERFORMANCE_API: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_API }}
+  SMP_WARMUP_SECONDS: 70 # default is 45 seconds
+  SMP_REPLICAS: 100 # default is 10
+
+jobs:
+
+  resolve-inputs:
+    runs-on: ubuntu-24.04
+    outputs:
+      baseline-sha: ${{ steps.set_and_validate_shas.outputs.BASELINE_SHA }}
+      comparison-sha: ${{ steps.set_and_validate_shas.outputs.COMPARISON_SHA }}
+      baseline-tag: ${{ steps.set_and_validate_shas.outputs.BASELINE_TAG }}
+      comparison-tag: ${{ steps.set_and_validate_shas.outputs.COMPARISON_TAG }}
+      smp-version: ${{ steps.experimental-meta.outputs.SMP_CRATE_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0  # need to pull repository history to find merge bases
+
+      - name: Set and Validate SHAs
+        id: set_and_validate_shas
+        run: |
+          # Set baseline SHA
+          if [ -z "${{ github.event.inputs.baseline-sha }}" ]; then
+            BASELINE_SHA=$(git rev-list -n 1 --before="7 days ago" origin/master)
+            echo "Using baseline SHA from 7 days ago: ${BASELINE_SHA}"
+          else
+            BASELINE_SHA="${{ github.event.inputs.baseline-sha }}"
+            echo "Using provided baseline SHA: ${BASELINE_SHA}"
+          fi
+
+          # Validate baseline SHA
+          if [ -n "${BASELINE_SHA}" ] && git cat-file -e "${BASELINE_SHA}^{commit}"; then
+            echo "Baseline SHA is valid."
+          else
+            echo "Invalid baseline SHA: ${BASELINE_SHA}."
+            exit 1
+          fi
+
+          # Set comparison SHA
+          if [ -z "${{ github.event.inputs.comparison-sha }}" ]; then
+            COMPARISON_SHA=$(git rev-parse origin/master)
+            echo "Using current HEAD for comparison SHA: ${COMPARISON_SHA}"
+          else
+            COMPARISON_SHA="${{ github.event.inputs.comparison-sha }}"
+            echo "Using provided comparison SHA: ${COMPARISON_SHA}"
+          fi
+
+          # Validate comparison SHA
+          if [ -n "${COMPARISON_SHA}" ] && git cat-file -e "${COMPARISON_SHA}^{commit}"; then
+            echo "Comparison SHA is valid."
+          else
+            echo "Invalid comparison SHA: ${COMPARISON_SHA}."
+            exit 1
+          fi
+
+          # Set tags and export them
+          BASELINE_TAG="workflow_dispatch-${COMPARISON_SHA}-${BASELINE_SHA}"
+          COMPARISON_TAG="workflow_dispatch-${COMPARISON_SHA}-${COMPARISON_SHA}"
+
+          echo "BASELINE_SHA=${BASELINE_SHA}" >> $GITHUB_OUTPUT
+          echo "COMPARISON_SHA=${COMPARISON_SHA}" >> $GITHUB_OUTPUT
+
+          echo "BASELINE_TAG=${BASELINE_TAG}" >> $GITHUB_OUTPUT
+          echo "COMPARISON_TAG=${COMPARISON_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Set SMP version
+        id: experimental-meta
+        run: |
+          export SMP_CRATE_VERSION="0.22.0"
+          echo "smp crate version: ${SMP_CRATE_VERSION}"
+          echo "SMP_CRATE_VERSION=${SMP_CRATE_VERSION}" >> $GITHUB_OUTPUT
+
+  # Only run this workflow if files changed in areas that could possibly introduce a regression.
+  check-source-changed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: resolve-inputs
+    outputs:
+      source_changed: ${{ steps.filter.outputs.SOURCE_CHANGED }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Collect file changes
+        id: changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          base: ${{ needs.resolve-inputs.outputs.baseline-sha }}
+          ref: ${{ needs.resolve-inputs.outputs.comparison-sha }}
+          list-files: shell
+          filters: |
+            all_changed:
+              - added|deleted|modified: "**"
+            ignore:
+              - "./.github/**/!(regression.yml)"
+              - "./.gitignore"
+              - "distribution/**"
+              - "rust-doc/**"
+              - "docs/**"
+              - "rfcs/**"
+              - "testing/**"
+              - "tilt/**"
+              - "website/**"
+              - "*.md"
+              - "Tiltfile"
+              - "NOTICE"
+              - "LICENSE-3rdparty.csv"
+              - "LICENSE"
+              - "lib/codecs/tests/data/**"
+
+      # This step allows us to conservatively run the tests if we added a new
+      # file or directory for source code, but forgot to add it to this workflow.
+      # Instead, we may unnecessarily run the test on new file or dir additions that
+      # wouldn't likely introduce regressions.
+      - name: Determine if should not run due to irrelevant file changes
+        id: filter
+        env:
+          ALL: ${{ steps.changes.outputs.all_changed_files }}
+          IGNORE: ${{ steps.changes.outputs.ignore_files }}
+        run: |
+          echo "ALL='${{ env.ALL }}'"
+          echo "IGNORE='${{ env.IGNORE }}'"
+          export SOURCE_CHANGED=$(comm -2 -3 <(printf "%s\n" "${{ env.ALL }}") <(printf "%s\n" "${{ env.IGNORE }}"))
+          echo "SOURCE_CHANGED='${SOURCE_CHANGED}'"
+
+          if [ "${SOURCE_CHANGED}" == "" ]; then
+            export SOURCE_CHANGED="false"
+          else
+            export SOURCE_CHANGED="true"
+          fi
+
+          echo "SOURCE_CHANGED='${SOURCE_CHANGED}'"
+          echo "SOURCE_CHANGED=${SOURCE_CHANGED}" >> $GITHUB_OUTPUT
+
+  should-run-gate:
+    runs-on: ubuntu-24.04
+    needs: check-source-changed
+    if: ${{ needs.check-source-changed.outputs.source_changed }}
+    steps:
+      - name: Gate check passed
+        run: echo "Source code changes detected, proceeding with regression tests"
+
+  ##
+  ## BUILD
+  ##
+
+  build-baseline:
+    name: Build baseline Vector container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs:
+      - should-run-gate
+      - resolve-inputs
+    steps:
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve-inputs.outputs.baseline-sha }}
+          path: baseline-vector
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build 'vector' target image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: baseline-vector/
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          file: regression/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          outputs: type=docker,dest=${{ runner.temp }}/baseline-image.tar
+          tags: |
+            vector:${{ needs.resolve-inputs.outputs.baseline-tag }}
+
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: baseline-image
+          path: "${{ runner.temp }}/baseline-image.tar"
+
+  build-comparison:
+    name: Build comparison Vector container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs:
+      - should-run-gate
+      - resolve-inputs
+    steps:
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve-inputs.outputs.comparison-sha }}
+          path: comparison-vector
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build 'vector' target image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: comparison-vector/
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          file: regression/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          outputs: type=docker,dest=${{ runner.temp }}/comparison-image.tar
+          tags: |
+            vector:${{ needs.resolve-inputs.outputs.comparison-tag }}
+
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: comparison-image
+          path: "${{ runner.temp }}/comparison-image.tar"
+
+  confirm-valid-credentials:
+    name: Confirm AWS credentials are minimally valid
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs:
+      - should-run-gate
+      - resolve-inputs
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Download SMP binary
+        run: |
+          aws s3 cp s3://smp-cli-releases/v${{ needs.resolve-inputs.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
+
+  ##
+  ## SUBMIT
+  ##
+
+  upload-baseline-image-to-ecr:
+    name: Upload baseline images to ECR
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs:
+      - should-run-gate
+      - resolve-inputs
+      - confirm-valid-credentials
+      - build-baseline
+    steps:
+      - name: 'Download baseline image'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: baseline-image
+
+      - name: Load baseline image
+        run: |
+          docker load --input baseline-image.tar
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Docker Login to ECR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ steps.login-ecr.outputs.registry }}
+
+      - name: Tag & push baseline image
+        run: |
+          docker tag vector:${{ needs.resolve-inputs.outputs.baseline-tag }} ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.baseline-tag }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.baseline-tag }}
+
+  upload-comparison-image-to-ecr:
+    name: Upload comparison images to ECR
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs:
+      - should-run-gate
+      - resolve-inputs
+      - confirm-valid-credentials
+      - build-comparison
+    steps:
+      - name: 'Download comparison image'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: comparison-image
+
+      - name: Load comparison image
+        run: |
+          docker load --input comparison-image.tar
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Docker Login to ECR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ steps.login-ecr.outputs.registry }}
+
+      - name: Tag & push comparison image
+        run: |
+          docker tag vector:${{ needs.resolve-inputs.outputs.comparison-tag }} ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.comparison-tag }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.comparison-tag }}
+
+  submit-job:
+    name: Submit regression job
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    needs:
+      - should-run-gate
+      - resolve-inputs
+      - upload-baseline-image-to-ecr
+      - upload-comparison-image-to-ecr
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve-inputs.outputs.comparison-sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Download SMP binary
+        run: |
+          aws s3 cp s3://smp-cli-releases/v${{ needs.resolve-inputs.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
+
+      - name: Submit job
+        env:
+          RUST_LOG: info
+        run: |
+          chmod +x ${{ runner.temp }}/bin/smp
+
+          ${{ runner.temp }}/bin/smp --team-id ${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }} job submit \
+            --baseline-image ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.baseline-tag }} \
+            --comparison-image ${{ steps.login-ecr.outputs.registry }}/${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }}-vector:${{ needs.resolve-inputs.outputs.comparison-tag }} \
+            --baseline-sha ${{ needs.resolve-inputs.outputs.baseline-sha }} \
+            --comparison-sha ${{ needs.resolve-inputs.outputs.comparison-sha }} \
+            --target-config-dir ${{ github.workspace }}/regression/ \
+            --warmup-seconds ${{ env.SMP_WARMUP_SECONDS }} \
+            --submission-metadata ${{ runner.temp }}/submission-metadata \
+            --replicas ${{ env.SMP_REPLICAS }}
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vector-submission-metadata
+          path: ${{ runner.temp }}/submission-metadata
+
+      - name: Await job
+        timeout-minutes: 120
+        env:
+          RUST_LOG: info
+        run: |
+          chmod +x ${{ runner.temp }}/bin/smp
+
+          ${{ runner.temp }}/bin/smp --team-id ${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }} job status \
+            --wait \
+            --wait-delay-seconds 60 \
+            --wait-timeout-minutes 120 \
+            --submission-metadata ${{ runner.temp }}/submission-metadata
+
+      - name: Handle cancellation if necessary
+        if: ${{ cancelled() }}
+        env:
+          RUST_LOG: info
+        run: |
+          chmod +x ${{ runner.temp }}/bin/smp
+          ${{ runner.temp }}/bin/smp --team-id ${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }} job cancel \
+            --submission-metadata ${{ runner.temp }}/submission-metadata
+
+  ##
+  ## ANALYZE
+  ##
+
+  detect-regression:
+    name: Determine regression status
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs:
+      - submit-job
+      - should-run-gate
+      - resolve-inputs
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Download SMP binary
+        run: |
+          aws s3 cp s3://smp-cli-releases/v${{ needs.resolve-inputs.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
+
+      - name: Download submission metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: vector-submission-metadata
+          path: ${{ runner.temp }}/
+
+      - name: Determine SMP job result
+        env:
+          RUST_LOG: info
+        run: |
+          chmod +x ${{ runner.temp }}/bin/smp
+
+          ${{ runner.temp }}/bin/smp --team-id ${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }} job result \
+            --submission-metadata ${{ runner.temp }}/submission-metadata
+
+  analyze-experiment:
+    name: Download regression analysis & upload report
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    needs:
+      - should-run-gate
+      - submit-job
+      - resolve-inputs
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve-inputs.outputs.comparison-sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Download SMP binary
+        run: |
+          aws s3 cp s3://smp-cli-releases/v${{ needs.resolve-inputs.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
+
+      - name: Download submission metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: vector-submission-metadata
+          path: ${{ runner.temp }}/
+
+      - name: Sync regression report to local system
+        env:
+          RUST_LOG: info
+        run: |
+          chmod +x ${{ runner.temp }}/bin/smp
+
+          ${{ runner.temp }}/bin/smp --team-id ${{ secrets.SINGLE_MACHINE_PERFORMANCE_TEAM_ID }} job sync \
+            --submission-metadata ${{ runner.temp }}/submission-metadata \
+            --output-path "${{ runner.temp }}/outputs"
+
+      - name: Read regression report
+        id: read-analysis
+        uses: juliangruber/read-file-action@b549046febe0fe86f8cb4f93c24e284433f9ab58 # v1.1.7
+        with:
+          path: ${{ runner.temp }}/outputs/report.md
+
+      - name: Upload regression report to artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: capture-artifacts
+          path: ${{ runner.temp }}/outputs/*
+
+  regression-detection-suite:
+    name: Set final result
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - should-run-gate
+      - resolve-inputs
+      - build-baseline
+      - build-comparison
+      - confirm-valid-credentials
+      - upload-baseline-image-to-ecr
+      - upload-comparison-image-to-ecr
+      - submit-job
+      - detect-regression
+      - analyze-experiment
+    steps:
+      - name: Download capture-artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: capture-artifacts
+
+      - name: Display Markdown Summary
+        continue-on-error: true
+        run: |
+          REPORT_MD=report.md
+          if [ -f ${REPORT_MD} ]; then
+            cat ${REPORT_MD} >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Did not find ${REPORT_MD} file."
+          fi
+
+      - name: Check all jobs status
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more jobs failed or were cancelled"
+            exit 1
+          else
+            echo "All jobs completed successfully"
+          fi
