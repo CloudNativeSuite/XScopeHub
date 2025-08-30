@@ -1,0 +1,72 @@
+server:
+  api:
+    listen: "0.0.0.0:8080"
+    response_format: json   # json | ndjson | text
+
+# ==== 核心：PG / OO ====
+postgres:
+  url: "${PG_URL}"
+
+openobserve:
+  endpoint: "${OO_ENDPOINT}"
+  headers: { Authorization: "${OO_AUTH}" }
+  datasets: { metrics: "metrics", logs: "logs", traces: "traces" }
+
+scheduler:
+  jitter: "3s"
+  max_backfill: "240h"
+  reload: { fs_watch: true }
+
+tenants:
+  initial_lookback:
+    oo-agg: "24h"
+    topo-iac: "48h"
+    topo-ansible: "168h"
+  list: [{ code: "default", id: 1 }]
+
+# ================ Ansible 仓库（HTTPS） =================
+ansible:
+  repos:
+    - id: "ansible-main"
+      url: "https://github.com/your-org/ansible-playbooks.git"   # HTTPS
+      ref: "main"
+      auth:
+        token_env: "GIT_TOKEN"     # 私有仓用 PAT；公开仓可省略
+      inventory: { globs: ["inventory/**/hosts.ini", "inventory/**/*.yml"] }
+      playbooks: { globs: ["playbooks/**/*.yml"] }
+      vars:
+        group_vars_glob: "group_vars/**/*"
+        host_vars_glob:  "host_vars/**/*"
+
+jobs:
+  # 1) OO→PG 近线聚合
+  oo-agg: { enabled: true, align: "1m", delay: "2m", interval: "1m", concurrency: 2 }
+
+  # 2) AGE 10 分钟活跃调用图（依赖 oo-agg）
+  age-refresh:
+    enabled: true
+    depends_on: ["oo-agg"]
+    interval: "1m"
+    graph: { name: "ops", sql_file: "./sql/age_refresh.sql" }
+
+  # 3) IaC 拓扑（仅从 IaC Status 同步；不抓 Cloud API）
+  topo-iac:
+    enabled: true
+    align: "15m"
+    delay: "1m"
+    interval: "15m"
+    status_ref: "iac_status"        # 绑定下方 iac_status 配置
+    full_sync_on_boot: true         # 首次全量；之后按 state 版本增量
+    drift_detection:                # 与“上一版 IaC 状态”比较（不对云端比对）
+      enabled: true
+      emit_event: true
+      severity_on_change: "INFO"    # 仅记录变更；不判“漂移”
+
+  # 4) Ansible 应用拓扑
+  topo-ansible:
+    enabled: true
+    align: "1h"
+    delay: "1m"
+    interval: "1h"
+    repo_ref: "ansible-main"
+    change_window: "24h"            # 仅解析近 24h 变更

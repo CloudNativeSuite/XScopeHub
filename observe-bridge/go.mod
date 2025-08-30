@@ -9,6 +9,7 @@ require (
 	github.com/prometheus/client_golang v1.23.0
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/cobra v1.9.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -47,5 +48,4 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
