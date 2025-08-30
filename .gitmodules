@@ -1,0 +1,18 @@
+[submodule "opentelemetry-collector"]
+	path = opentelemetry-collector
+	url = git@github.com:svc-design/opentelemetry-collector.git
+[submodule "agents/process-exporter"]
+	path = agents/process-exporter
+	url = git@github.com:svc-design/process-exporter.git
+[submodule "agents/node_exporter"]
+	path = agents/node_exporter
+	url = git@github.com:svc-design/node_exporter.git
+[submodule "agents/deepflow"]
+	path = agents/deepflow
+	url = git@github.com:svc-design/deepflow.git
+[submodule "agents/vector"]
+	path = agents/vector
+	url = git@github.com:svc-design/vector.git
+[submodule "openobserve"]
+	path = openobserve
+	url = https://github.com/openobserve/openobserve.git
