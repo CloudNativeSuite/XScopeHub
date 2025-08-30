@@ -30,8 +30,8 @@ jobs:
         arch: [amd64, arm64]
         include:
           - component: llm-ops-agent
-            go_mod: go.mod
-            workdir: .
+            go_mod: llm-ops-agent/go.mod
+            workdir: llm-ops-agent
             artifact_prefix: xopsagent
             build_cmd: go build -o bin/xopsagent ./cmd/agent
           - component: observe-bridge
