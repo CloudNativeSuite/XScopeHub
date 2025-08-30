@@ -5,7 +5,7 @@
 1. Clone project
    ```bash
    git clone https://github.com/your-org/xscopehub.git
-   cd xscopehub
+   cd xscopehub/observe-bridge
    ```
 2. Prepare environment variables
    ```bash
