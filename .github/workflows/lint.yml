@@ -10,11 +10,17 @@ on:
 jobs:
   go-vet:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory: [llm-ops-agent, observe-bridge]
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ matrix.directory }}/go.mod
       - name: Run go vet
         run: go vet ./...
 
