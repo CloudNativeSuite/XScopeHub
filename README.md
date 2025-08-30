@@ -1,21 +1,8 @@
 # XScopeHub
 
-Unified observability platform for metrics, logs, and traces.
+This repository hosts multiple components:
 
-## Overview
-
-XScopeHub combines a scalable ingestion gateway, alerting engine, and the optional XInsight analytics module. Data is written to TimescaleDB (hot layer) and ClickHouse (cold/OLAP).
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Deployment](docs/deployment.md)
-- [Roadmap](docs/roadmap.md)
-- [Grafana](docs/grafana.md)
-- [API](docs/api.md)
-
-## Repository Structure
-
-The repository layout and a description of each top-level component can be found in
-[docs/repository_structure.md](docs/repository_structure.md).
-
+- `Observability-ETL/` – core observability ETL services and supporting code.
+- `LLM-Agent/` – placeholder for an upcoming LLM-based operations agent.
+- `agents/` – external agent integrations (deepflow, node_exporter, process-exporter, vector).
+- `openobserve` and `opentelemetry-collector` – external dependencies tracked as submodules.

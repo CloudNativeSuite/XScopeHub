@@ -14,6 +14,6 @@ func NewServer() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	r.StaticFile("/openapi.yaml", "api/openapi.yaml")
+	r.StaticFile("/openapi.yaml", "etl/api/openapi.yaml")
 	return r
 }
