@@ -6,10 +6,14 @@ import (
 	daemon "github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
 
-	"github.com/xscopehub/xscopehub/etl/internal/etl"
+	"github.com/xscopehub/xscopehub/internal/etl"
+	"github.com/xscopehub/xscopehub/internal/etl/config"
 )
 
-var daemonMode bool
+var (
+	daemonMode bool
+	configPath string
+)
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -30,11 +34,16 @@ func main() {
 				}
 				defer cntxt.Release()
 			}
-			r := etl.NewServer()
-			return r.Run()
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return err
+			}
+			srv := etl.NewServer(cfg)
+			return srv.Run()
 		},
 	}
 	rootCmd.PersistentFlags().BoolVar(&daemonMode, "daemon", false, "run in background")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "config/observe-bridge-etl.yaml", "path to configuration file")
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
