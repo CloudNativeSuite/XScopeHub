@@ -1,11 +1,11 @@
 server:
   api:
-    listen: "0.0.0.0:8090"
+    listen: "0.0.0.0:8100"
     response_format: json   # json | ndjson | text
 
 inputs:
-  db:
-    pgurl: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
+  postgres:
+    url: "postgres://shenlan:password@127.0.0.1:5432/shenlan/?sslmode=disable"
   otel:
     endpoint: "http://openobserve:5080/api/default/"
     headers:
