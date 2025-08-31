@@ -2,7 +2,7 @@
 
 # Run the API via unified binary
 run:
-	go run ./cmd --mode api
+	go run ./cmd --daemon=false
 
 # Run all tests
 test:

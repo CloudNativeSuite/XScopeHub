@@ -10,6 +10,7 @@ require (
 	github.com/nats-io/nats.go v1.45.0
 	github.com/prometheus/client_golang v1.23.0
 	github.com/segmentio/kafka-go v0.4.49
+	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/cobra v1.9.1
 	github.com/sqlc-dev/pqtype v0.3.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.12.0
@@ -44,6 +45,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
