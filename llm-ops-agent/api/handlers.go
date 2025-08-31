@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func writeJSON(w http.ResponseWriter, payload any) {
@@ -33,6 +35,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/case/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"module": "orchestrator", "status": "ok"})
 	})
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
