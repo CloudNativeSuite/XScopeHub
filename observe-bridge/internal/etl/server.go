@@ -1,6 +1,7 @@
 package etl
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,9 +29,8 @@ func NewServer(cfg *config.Config) *Server {
 
 // Run starts the HTTP server using the configured listen address.
 func (s *Server) Run() error {
-	addr := "0.0.0.0:8080"
-	if s.cfg != nil && s.cfg.Server.API.Listen != "" {
-		addr = s.cfg.Server.API.Listen
+	if s.cfg == nil || s.cfg.Server.API.Listen == "" {
+		return fmt.Errorf("server listen address not configured")
 	}
-	return s.engine.Run(addr)
+	return s.engine.Run(s.cfg.Server.API.Listen)
 }
