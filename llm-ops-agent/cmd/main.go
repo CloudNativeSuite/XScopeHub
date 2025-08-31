@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -19,9 +22,11 @@ import (
 type Config struct {
 	Inputs struct {
 		DB struct {
-			PGURL        string   `yaml:"pgurl"`
-			OTelEndpoint []string `yaml:"otel_endpoint"`
+			PGURL string `yaml:"pgurl"`
 		} `yaml:"db"`
+		OTEL struct {
+			Endpoint string `yaml:"endpoint"`
+		} `yaml:"otel"`
 	} `yaml:"inputs"`
 	Outputs struct {
 		API struct {
@@ -62,6 +67,7 @@ func runAgent(cfgPath string) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	logConnections(cfg)
 
 	mux := http.NewServeMux()
 	api.RegisterRoutes(mux)
@@ -89,6 +95,36 @@ func runAPI() error {
 		return fmt.Errorf("server init: %w", err)
 	}
 	return srv.Run(ctx)
+}
+
+func logConnections(cfg *Config) {
+	logger := slog.Default()
+	db, err := sql.Open("pgx", cfg.Inputs.DB.PGURL)
+	if err != nil {
+		logger.Error("pg db connection", "error", err)
+	} else if err := db.Ping(); err != nil {
+		logger.Warn("pg db ping failed", "error", err)
+	} else {
+		logger.Info("pg db connection ok")
+	}
+	_ = db.Close()
+	checkHTTPEndpoint(logger, "otel endpoint", cfg.Inputs.OTEL.Endpoint)
+	checkHTTPEndpoint(logger, "models.embedder.endpoint", cfg.Models.Embedder.Endpoint)
+	checkHTTPEndpoint(logger, "models.generator.endpoint", cfg.Models.Generator.Endpoint)
+}
+
+func checkHTTPEndpoint(logger *slog.Logger, name, url string) {
+	if url == "" {
+		logger.Debug(name + " not configured")
+		return
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		logger.Warn(name+" unreachable", "endpoint", url, "error", err)
+		return
+	}
+	resp.Body.Close()
+	logger.Info(name+" reachable", "endpoint", url, "status", resp.StatusCode)
 }
 
 var (

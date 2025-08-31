@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info:
+  title: XOpsAgent API
+  version: "0.1.0"
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Metrics output
+          content:
+            text/plain:
+              schema:
+                type: string
