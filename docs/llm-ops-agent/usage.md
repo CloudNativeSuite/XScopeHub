@@ -3,7 +3,7 @@
 Build the daemon:
 
 ```bash
-go build -o xopsagent ./cmd/agent
+go build -o xopsagent ./cmd
 ```
 
 Run with a configuration file (default `/etc/XOpsAgent.yaml`):

@@ -28,7 +28,7 @@ export ARGOCD_TOKEN="<argocd.jwt>"
 export ARGOCD_APP="your-app"
 运行：
 
-go run ./cmd/agent
+go run ./cmd
 4) 发送告警（模拟 Alertmanager Webhook）
 curl -XPOST http://localhost:8080/alertmanager -H 'Content-Type: application/json' -d '{
   "status": "firing",
