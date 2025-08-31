@@ -6,6 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/gin-gonic/gin v1.10.1
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.23.0
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/cobra v1.9.1
