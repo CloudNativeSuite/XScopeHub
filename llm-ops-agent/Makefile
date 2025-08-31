@@ -2,7 +2,7 @@
 
 # Run the API via unified binary
 run:
-	go run ./cmd --daemon=false
+	./bin/xopsagent --daemon=false --config=../config/XOpsAgent.yaml
 
 # Run all tests
 test:
