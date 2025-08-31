@@ -227,7 +227,7 @@ func main() {
 		},
 	}
 	rootCmd.PersistentFlags().BoolVar(&daemonMode, "daemon", true, "run in background")
-	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "../config/XOpsAgent.yaml", "path to config file")
+	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "/etc/XOpsAgent.yaml", "path to config file")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
