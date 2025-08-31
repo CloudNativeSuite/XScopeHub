@@ -1,19 +1,49 @@
 package main
 
 import (
+	"database/sql"
 	"log"
+	"net/http"
+	"os/exec"
+	"time"
 
 	daemon "github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
 
 	"github.com/xscopehub/xscopehub/internal/etl"
 	"github.com/xscopehub/xscopehub/internal/etl/config"
+
+	_ "github.com/lib/pq"
 )
 
 var (
 	daemonMode bool
 	configPath string
 )
+
+func checkPostgres(url string) error {
+	db, err := sql.Open("postgres", url)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.Ping()
+}
+
+func checkEndpoint(url string) error {
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+func checkRepo(url string) error {
+	cmd := exec.Command("git", "ls-remote", url)
+	return cmd.Run()
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -38,6 +68,31 @@ func main() {
 			if err != nil {
 				return err
 			}
+			log.Printf("INFO: loaded config from %s", configPath)
+
+			log.Printf("DEBUG: checking Postgres connection %s", cfg.Postgres.URL)
+			if err := checkPostgres(cfg.Postgres.URL); err != nil {
+				log.Printf("ERROR: Postgres connection failed: %v", err)
+			} else {
+				log.Printf("INFO: Postgres connection successful")
+			}
+
+			log.Printf("DEBUG: checking OTEL endpoint %s", cfg.OpenObserve.Endpoint)
+			if err := checkEndpoint(cfg.OpenObserve.Endpoint); err != nil {
+				log.Printf("WARN: OTEL endpoint unreachable: %v", err)
+			} else {
+				log.Printf("INFO: OTEL endpoint reachable")
+			}
+
+			for _, repo := range cfg.Ansible.Repos {
+				log.Printf("DEBUG: checking ansible repo %s (%s)", repo.ID, repo.URL)
+				if err := checkRepo(repo.URL); err != nil {
+					log.Printf("WARN: ansible repo %s unreachable: %v", repo.ID, err)
+				} else {
+					log.Printf("INFO: ansible repo %s reachable", repo.ID)
+				}
+			}
+
 			srv := etl.NewServer(cfg)
 			return srv.Run()
 		},
