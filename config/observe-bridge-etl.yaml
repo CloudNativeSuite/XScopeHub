@@ -5,12 +5,15 @@ server:
 
 # ==== 核心：PG / OO ====
 postgres:
-  url: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
+  url: "postgres://shenlan:password@127.0.0.1:5432/shenlan?sslmode=disable"
 
 openobserve:
-  endpoint: "${OO_ENDPOINT}"
-  headers: { Authorization: "${OO_AUTH}" }
-  datasets: { metrics: "metrics", logs: "logs", traces: "traces" }
+  endpoint: "https://otel.svc.plus/api/default/"
+  authorization: "Basic cm9vdEBleGFtcGxlLmNvbTpiNTVkbHFLenVLamZXVXRY"
+  datasets:
+    logs: "logs"
+    traces: "traces"
+    metrics: "metrics"
 
 scheduler:
   jitter: "3s"
