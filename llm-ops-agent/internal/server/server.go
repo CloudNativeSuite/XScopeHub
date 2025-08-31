@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -51,7 +52,8 @@ func New(cfg config.Config) (*Server, error) {
 	kw := kafka.NewWriter(kafka.WriterConfig{Brokers: cfg.KafkaBrokers, Topic: "events"})
 
 	r := gin.New()
-	r.Use(otelgin.Middleware("aiops"))
+	r.Use(gin.Logger(), otelgin.Middleware("aiops"))
+	r.StaticFile("/openapi.yaml", "/api/openapi.yaml")
 
 	srv := &Server{cfg: cfg, router: r, db: sqlDB, nats: nc, kafka: kw, logger: logger}
 	srv.routes()
@@ -60,11 +62,7 @@ func New(cfg config.Config) (*Server, error) {
 
 func (s *Server) routes() {
 	s.router.GET("/healthz", func(c *gin.Context) {
-		if err := s.db.PingContext(c.Request.Context()); err != nil {
-			c.JSON(500, gin.H{"status": "db not ready"})
-			return
-		}
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	s.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 }
