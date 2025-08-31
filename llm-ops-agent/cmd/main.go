@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	daemon "github.com/sevlyar/go-daemon"
@@ -24,13 +25,13 @@ type Config struct {
 		} `yaml:"api"`
 	} `yaml:"server"`
 	Inputs struct {
-		DB struct {
-			PGURL string `yaml:"pgurl"`
-		} `yaml:"db"`
-		OTEL struct {
+		Postgres struct {
+			URL string `yaml:"url"`
+		} `yaml:"postgres"`
+		OpenObserve struct {
 			Endpoint string            `yaml:"endpoint"`
 			Headers  map[string]string `yaml:"headers"`
-		} `yaml:"otel"`
+		} `yaml:"openobserve"`
 	} `yaml:"inputs"`
 	Models struct {
 		Embedder struct {
@@ -113,32 +114,89 @@ func runAgent(cfgPath string) error {
 
 func logConnections(cfg *Config) {
 	logger := slog.Default()
-	db, err := sql.Open("pgx", cfg.Inputs.DB.PGURL)
-	if err != nil {
-		logger.Error("pg db connection", "error", err)
-	} else if err := db.Ping(); err != nil {
-		logger.Warn("pg db ping failed", "error", err)
-	} else {
-		logger.Info("pg db connection ok")
+	checkPostgres(logger, cfg.Inputs.Postgres.URL)
+	checkHTTP(logger, "inputs.openobserve", cfg.Inputs.OpenObserve.Endpoint, cfg.Inputs.OpenObserve.Headers)
+	checkHTTP(logger, "models.embedder", cfg.Models.Embedder.Endpoint, nil)
+	checkHTTP(logger, "models.generator", cfg.Models.Generator.Endpoint, nil)
+
+	if cfg.Outputs.GitHubPR.Enabled {
+		checkGitHub(logger, cfg.Outputs.GitHubPR.Repo, cfg.Outputs.GitHubPR.TokenEnv)
 	}
-	_ = db.Close()
-	checkHTTPEndpoint(logger, "otel endpoint", cfg.Inputs.OTEL.Endpoint)
-	checkHTTPEndpoint(logger, "models.embedder.endpoint", cfg.Models.Embedder.Endpoint)
-	checkHTTPEndpoint(logger, "models.generator.endpoint", cfg.Models.Generator.Endpoint)
+	if cfg.Outputs.FileReport.Enabled {
+		checkFilePath(logger, cfg.Outputs.FileReport.Path)
+	}
+	if cfg.Outputs.Answer.Enabled {
+		logger.Info("outputs.answer configured", "channel", cfg.Outputs.Answer.Channel)
+	}
+	if cfg.Outputs.Webhook.Enabled {
+		checkHTTP(logger, "outputs.webhook", cfg.Outputs.Webhook.URL, cfg.Outputs.Webhook.Headers)
+	}
 }
 
-func checkHTTPEndpoint(logger *slog.Logger, name, url string) {
+func checkPostgres(logger *slog.Logger, url string) {
+	db, err := sql.Open("pgx", url)
+	if err != nil {
+		logger.Error("inputs.postgres connection", "error", err)
+		return
+	}
+	if err := db.Ping(); err != nil {
+		logger.Warn("inputs.postgres ping failed", "error", err)
+	} else {
+		logger.Info("inputs.postgres reachable")
+	}
+	_ = db.Close()
+}
+
+func checkHTTP(logger *slog.Logger, name, url string, headers map[string]string) {
 	if url == "" {
 		logger.Debug(name + " not configured")
 		return
 	}
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		logger.Error(name+" request", "endpoint", url, "error", err)
+		return
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	logger.Info("request", "target", name, "endpoint", url)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Warn(name+" unreachable", "endpoint", url, "error", err)
 		return
 	}
 	resp.Body.Close()
 	logger.Info(name+" reachable", "endpoint", url, "status", resp.StatusCode)
+}
+
+func checkFilePath(logger *slog.Logger, path string) {
+	if path == "" {
+		logger.Debug("outputs.file_report not configured")
+		return
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		logger.Warn("outputs.file_report inaccessible", "path", path, "error", err)
+	} else {
+		logger.Info("outputs.file_report path ok", "path", path)
+	}
+}
+
+func checkGitHub(logger *slog.Logger, repo, tokenEnv string) {
+	if repo == "" {
+		logger.Debug("outputs.github_pr repo not configured")
+		return
+	}
+	token := os.Getenv(tokenEnv)
+	headers := map[string]string{}
+	if token == "" {
+		logger.Warn("outputs.github_pr token missing", "env", tokenEnv)
+	} else {
+		headers["Authorization"] = "Bearer " + token
+	}
+	url := fmt.Sprintf("https://api.github.com/repos/%s", repo)
+	checkHTTP(logger, "outputs.github_pr", url, headers)
 }
 
 var (
@@ -169,7 +227,7 @@ func main() {
 		},
 	}
 	rootCmd.PersistentFlags().BoolVar(&daemonMode, "daemon", true, "run in background")
-	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "/etc/XOpsAgent.yaml", "path to config file")
+	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "../config/XOpsAgent.yaml", "path to config file")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
