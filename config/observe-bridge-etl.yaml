@@ -4,13 +4,28 @@ server:
     response_format: json   # json | ndjson | text
 
 # ==== 核心：PG / OO ====
-postgres:
-  url: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
-
-openobserve:
-  endpoint: "${OO_ENDPOINT}"
-  headers: { Authorization: "${OO_AUTH}" }
-  datasets: { metrics: "metrics", logs: "logs", traces: "traces" }
+inputs:
+  openobserve:
+    endpoint: "https://otel.svc.plus/api/default/"
+    headers:
+      Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206Q29tcGxleFBhc3MxMjMh"
+  ansible:
+    repos:
+      - id: "gitops"
+        url: "https://github.com/svc-design/gitops.git"   # HTTPS
+        ref: "main"
+        auth:
+          token_env: "GIT_TOKEN"     # 私有仓用 PAT；公开仓可省略
+        inventory:
+          - "inventory/**/*"
+        playbooks:
+          - "playbooks/**/*"
+        vars:
+          - "group_vars/**/*"
+          - "host_vars/**/*"
+outputs:
+  postgres:
+    url: "postgres://shenlan:password@127.0.0.1:5432/shenlan?sslmode=disable"
 
 scheduler:
   jitter: "3s"
@@ -24,19 +39,6 @@ tenants:
     topo-ansible: "168h"
   list: [{ code: "default", id: 1 }]
 
-# ================ Ansible 仓库（HTTPS） =================
-ansible:
-  repos:
-    - id: "gitops"
-      url: "https://github.com/svc-design/gitops.git"   # HTTPS
-      ref: "main"
-      auth:
-        token_env: "GIT_TOKEN"     # 私有仓用 PAT；公开仓可省略
-      inventory: { globs: ["inventory/**/hosts.ini", "inventory/**/*.yml"] }
-      playbooks: { globs: ["playbooks/**/*.yml"] }
-      vars:
-        group_vars_glob: "group_vars/**/*"
-        host_vars_glob:  "host_vars/**/*"
 
 jobs:
   # 1) OO→PG 近线聚合
