@@ -1,4 +1,4 @@
-.PHONY: all build test run docker helm
+.PHONY: all build test run docker helm clean
 
 GO ?= go
 
@@ -18,3 +18,6 @@ docker:
 
 helm:
 	helm upgrade --install stratolake deployments/helm -n stratolake --create-namespace
+
+clean:
+	rm -rf bin
