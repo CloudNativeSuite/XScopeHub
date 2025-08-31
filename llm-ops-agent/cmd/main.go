@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/yourname/XOpsAgent/api"
@@ -56,10 +57,10 @@ func loadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func runAgent(cfgPath string) {
+func runAgent(cfgPath string) error {
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	mux := http.NewServeMux()
@@ -71,40 +72,49 @@ func runAgent(cfgPath string) {
 	}
 
 	log.Printf("XOpsAgent daemon listening on %s", listen)
-	if err := http.ListenAndServe(listen, mux); err != nil {
-		log.Fatalf("listen: %v", err)
-	}
+	return http.ListenAndServe(listen, mux)
 }
 
-func runAPI() {
+func runAPI() error {
 	ctx := context.Background()
 	cfg := config.Load()
 	shutdown, err := telemetry.Init(ctx, "aiops", cfg.OtlpEndpoint)
 	if err != nil {
-		log.Fatalf("failed to init telemetry: %v", err)
+		return fmt.Errorf("failed to init telemetry: %w", err)
 	}
 	defer func() { _ = shutdown(ctx) }()
 
 	srv, err := server.New(cfg)
 	if err != nil {
-		log.Fatalf("server init: %v", err)
+		return fmt.Errorf("server init: %w", err)
 	}
-	if err := srv.Run(ctx); err != nil {
-		log.Fatalf("server run: %v", err)
-	}
+	return srv.Run(ctx)
 }
 
-func main() {
-	mode := flag.String("mode", "agent", "mode to run: agent or api")
-	cfgPath := flag.String("config", "/etc/XOpsAgent.yaml", "path to config file (agent mode)")
-	flag.Parse()
+var (
+	mode    string
+	cfgPath string
+)
 
-	switch *mode {
-	case "agent":
-		runAgent(*cfgPath)
-	case "api":
-		runAPI()
-	default:
-		log.Fatalf("unknown mode: %s", *mode)
+func main() {
+	rootCmd := &cobra.Command{
+		Use:   "llm-ops-agent",
+		Short: "LLM Ops Agent service",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch mode {
+			case "agent":
+				return runAgent(cfgPath)
+			case "api":
+				return runAPI()
+			default:
+				return fmt.Errorf("unknown mode: %s", mode)
+			}
+		},
+	}
+	rootCmd.Flags().StringVar(&mode, "mode", "agent", "mode to run: agent or api")
+	rootCmd.Flags().StringVar(&cfgPath, "config", "/etc/XOpsAgent.yaml", "path to config file (agent mode)")
+
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal(err)
 	}
 }
