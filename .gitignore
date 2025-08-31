@@ -4,3 +4,4 @@ agents/node_exporter/
 agents/deepflow/
 agents/vector/
 openobserve/
+observe-bridge/bin/
