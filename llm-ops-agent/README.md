@@ -16,7 +16,7 @@ XOpsAgent/
 │       └── pr_template.md
 ├── db/
 │   └── 001_schema.sql
-├── cmd/agent/
+├── cmd/
 │   └── main.go
 ├── scripts/
 │   └── load_schema.sh
@@ -65,7 +65,7 @@ export ARGOCD_APP="your-app"
 
 运行：
 ```bash
-go run ./cmd/agent
+go run ./cmd
 ```
 
 ### 4) 发送告警（模拟 Alertmanager Webhook）
