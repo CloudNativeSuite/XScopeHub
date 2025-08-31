@@ -5,3 +5,4 @@ agents/deepflow/
 agents/vector/
 openobserve/
 observe-bridge/bin/
+llm-ops-agent/bin/
