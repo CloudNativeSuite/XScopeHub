@@ -5,7 +5,7 @@ GO ?= go
 all: build
 
 build:
-	$(GO) build ./...
+	$(GO) build -o bin/observe-bridge ./cmd/agent
 
 test:
 	$(GO) test ./...

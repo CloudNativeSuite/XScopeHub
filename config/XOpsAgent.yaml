@@ -1,6 +1,6 @@
 server:
   api:
-    listen: "0.0.0.0:8080"
+    listen: "0.0.0.0:8090"
     response_format: json   # json | ndjson | text
 
 inputs:
