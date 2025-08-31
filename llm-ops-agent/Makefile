@@ -1,4 +1,4 @@
-.PHONY: run test migrate deps tidy build clean-mod
+.PHONY: run test migrate deps tidy build clean-mod clean
 
 # Run the API via unified binary
 run:
@@ -24,6 +24,10 @@ tidy:
 build:
 	@mkdir -p bin
 	@go build -o bin/xopsagent ./cmd
+
+# Clean build artifacts
+clean:
+	@rm -rf bin
 
 # Clean and re-download modules
 clean-mod:
