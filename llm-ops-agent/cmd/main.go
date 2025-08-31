@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gin-gonic/gin"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	daemon "github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
@@ -100,8 +102,9 @@ func runAgent(cfgPath string) error {
 	}
 	logConnections(cfg)
 
-	mux := http.NewServeMux()
-	api.RegisterRoutes(mux)
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery())
+	api.RegisterRoutes(r)
 
 	listen := cfg.Server.API.Listen
 	if listen == "" {
@@ -109,7 +112,7 @@ func runAgent(cfgPath string) error {
 	}
 
 	log.Printf("XOpsAgent daemon listening on %s", listen)
-	return http.ListenAndServe(listen, mux)
+	return r.Run(listen)
 }
 
 func logConnections(cfg *Config) {
