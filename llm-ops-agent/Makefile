@@ -2,7 +2,7 @@
 
 # Run the API via unified binary
 run:
-       go run ./cmd --mode api
+	go run ./cmd --mode api
 
 # Run all tests
 test:
@@ -22,8 +22,8 @@ tidy:
 
 # Build project
 build:
-       @mkdir -p bin
-       @go build -o bin/xopsagent ./cmd
+	@mkdir -p bin
+	@go build -o bin/xopsagent ./cmd
 
 # Clean and re-download modules
 clean-mod:
