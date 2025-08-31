@@ -17,27 +17,24 @@ import (
 )
 
 type Config struct {
+	Server struct {
+		API struct {
+			Listen         string `yaml:"listen"`
+			ResponseFormat string `yaml:"response_format"`
+		} `yaml:"api"`
+	} `yaml:"server"`
 	Inputs struct {
 		DB struct {
 			PGURL string `yaml:"pgurl"`
 		} `yaml:"db"`
 		OTEL struct {
-			Endpoint string `yaml:"endpoint"`
+			Endpoint string            `yaml:"endpoint"`
+			Headers  map[string]string `yaml:"headers"`
 		} `yaml:"otel"`
 	} `yaml:"inputs"`
-	Outputs struct {
-		API struct {
-			Listen string `yaml:"listen"`
-			Type   string `yaml:"type"`
-		} `yaml:"api"`
-		GitOps []struct {
-			RepoURL string `yaml:"repoUrl"`
-			Token   string `yaml:"token"`
-		} `yaml:"gitops"`
-	} `yaml:"outputs"`
 	Models struct {
 		Embedder struct {
-			Models   string `yaml:"models"`
+			Name     string `yaml:"name"`
 			Endpoint string `yaml:"endpoint"`
 		} `yaml:"embedder"`
 		Generator struct {
@@ -45,6 +42,42 @@ type Config struct {
 			Endpoint string   `yaml:"endpoint"`
 		} `yaml:"generator"`
 	} `yaml:"models"`
+	Outputs struct {
+		GitHubPR struct {
+			Enabled  bool   `yaml:"enabled"`
+			Repo     string `yaml:"repo"`
+			TokenEnv string `yaml:"token_env"`
+			PR       struct {
+				Number        int    `yaml:"number"`
+				Title         string `yaml:"title"`
+				Branch        string `yaml:"branch"`
+				CommitMessage string `yaml:"commit_message"`
+				Files         []struct {
+					From string `yaml:"from"`
+					To   string `yaml:"to"`
+				} `yaml:"files"`
+			} `yaml:"pr"`
+		} `yaml:"github_pr"`
+		FileReport struct {
+			Enabled bool   `yaml:"enabled"`
+			Path    string `yaml:"path"`
+			Format  string `yaml:"format"`
+		} `yaml:"file_report"`
+		Answer struct {
+			Enabled bool   `yaml:"enabled"`
+			Channel string `yaml:"channel"`
+		} `yaml:"answer"`
+		Webhook struct {
+			Enabled bool              `yaml:"enabled"`
+			URL     string            `yaml:"url"`
+			Headers map[string]string `yaml:"headers"`
+		} `yaml:"webhook"`
+	} `yaml:"outputs"`
+	Routing struct {
+		Default  []string            `yaml:"default"`
+		OnAction map[string][]string `yaml:"on_action"`
+		OnError  []string            `yaml:"on_error"`
+	} `yaml:"routing"`
 }
 
 func loadConfig(path string) (*Config, error) {
@@ -69,9 +102,9 @@ func runAgent(cfgPath string) error {
 	mux := http.NewServeMux()
 	api.RegisterRoutes(mux)
 
-	listen := cfg.Outputs.API.Listen
+	listen := cfg.Server.API.Listen
 	if listen == "" {
-		listen = ":8080"
+		return fmt.Errorf("server.api.listen must be set in config")
 	}
 
 	log.Printf("XOpsAgent daemon listening on %s", listen)
