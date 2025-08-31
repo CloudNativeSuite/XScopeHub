@@ -1,6 +1,6 @@
 server:
   api:
-    listen: "0.0.0.0:8080"
+    listen: "0.0.0.0:8090"
     response_format: json   # json | ndjson | text
 
 # ==== 核心：PG / OO ====
@@ -27,8 +27,8 @@ tenants:
 # ================ Ansible 仓库（HTTPS） =================
 ansible:
   repos:
-    - id: "ansible-main"
-      url: "https://github.com/your-org/ansible-playbooks.git"   # HTTPS
+    - id: "gitops"
+      url: "https://github.com/svc-design/gitops.git"   # HTTPS
       ref: "main"
       auth:
         token_env: "GIT_TOKEN"     # 私有仓用 PAT；公开仓可省略

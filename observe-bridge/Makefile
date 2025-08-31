@@ -11,7 +11,7 @@ test:
 	$(GO) test ./...
 
 run:	# 本地快速起网关（其余用 compose/helm）
-	go run ./cmd
+	./bin/observe-bridge --config ../config/observe-bridge-etl.yaml
 
 docker:
 	docker build -t stratolake/observe-bridge:dev .
