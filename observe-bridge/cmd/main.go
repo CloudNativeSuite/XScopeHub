@@ -70,21 +70,21 @@ func main() {
 			}
 			log.Printf("INFO: loaded config from %s", configPath)
 
-			log.Printf("DEBUG: checking Postgres connection %s", cfg.Postgres.URL)
-			if err := checkPostgres(cfg.Postgres.URL); err != nil {
+			log.Printf("DEBUG: checking Postgres connection %s", cfg.Outputs.Postgres.URL)
+			if err := checkPostgres(cfg.Outputs.Postgres.URL); err != nil {
 				log.Printf("ERROR: Postgres connection failed: %v", err)
 			} else {
 				log.Printf("INFO: Postgres connection successful")
 			}
 
-			log.Printf("DEBUG: checking OTEL endpoint %s", cfg.OpenObserve.Endpoint)
-			if err := checkEndpoint(cfg.OpenObserve.Endpoint); err != nil {
+			log.Printf("DEBUG: checking OTEL endpoint %s", cfg.Inputs.OpenObserve.Endpoint)
+			if err := checkEndpoint(cfg.Inputs.OpenObserve.Endpoint); err != nil {
 				log.Printf("WARN: OTEL endpoint unreachable: %v", err)
 			} else {
 				log.Printf("INFO: OTEL endpoint reachable")
 			}
 
-			for _, repo := range cfg.Ansible.Repos {
+			for _, repo := range cfg.Inputs.Ansible.Repos {
 				log.Printf("DEBUG: checking ansible repo %s (%s)", repo.ID, repo.URL)
 				if err := checkRepo(repo.URL); err != nil {
 					log.Printf("WARN: ansible repo %s unreachable: %v", repo.ID, err)
