@@ -19,6 +19,7 @@ type Server struct {
 // NewServer creates a server with basic health and metrics endpoints.
 func NewServer(cfg *config.Config) *Server {
 	r := gin.New()
+	r.Use(gin.Logger())
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})

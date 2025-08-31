@@ -15,14 +15,31 @@ type Config struct {
 			ResponseFormat string `yaml:"response_format"`
 		} `yaml:"api"`
 	} `yaml:"server"`
-	Postgres struct {
-		URL string `yaml:"url"`
-	} `yaml:"postgres"`
-	OpenObserve struct {
-		Endpoint string            `yaml:"endpoint"`
-		Headers  map[string]string `yaml:"headers"`
-		Datasets map[string]string `yaml:"datasets"`
-	} `yaml:"openobserve"`
+	Inputs struct {
+		OpenObserve struct {
+			Endpoint string            `yaml:"endpoint"`
+			Headers  map[string]string `yaml:"headers"`
+			Datasets map[string]string `yaml:"datasets"`
+		} `yaml:"openobserve"`
+		Ansible struct {
+			Repos []struct {
+				ID   string `yaml:"id"`
+				URL  string `yaml:"url"`
+				Ref  string `yaml:"ref"`
+				Auth struct {
+					TokenEnv string `yaml:"token_env"`
+				} `yaml:"auth"`
+				Inventory []string `yaml:"inventory"`
+				Playbooks []string `yaml:"playbooks"`
+				Vars      []string `yaml:"vars"`
+			} `yaml:"repos"`
+		} `yaml:"ansible"`
+	} `yaml:"inputs"`
+	Outputs struct {
+		Postgres struct {
+			URL string `yaml:"url"`
+		} `yaml:"postgres"`
+	} `yaml:"outputs"`
 	Scheduler struct {
 		Jitter      string `yaml:"jitter"`
 		MaxBackfill string `yaml:"max_backfill"`
@@ -37,26 +54,6 @@ type Config struct {
 			ID   int    `yaml:"id"`
 		} `yaml:"list"`
 	} `yaml:"tenants"`
-	Ansible struct {
-		Repos []struct {
-			ID   string `yaml:"id"`
-			URL  string `yaml:"url"`
-			Ref  string `yaml:"ref"`
-			Auth struct {
-				TokenEnv string `yaml:"token_env"`
-			} `yaml:"auth"`
-			Inventory struct {
-				Globs []string `yaml:"globs"`
-			} `yaml:"inventory"`
-			Playbooks struct {
-				Globs []string `yaml:"globs"`
-			} `yaml:"playbooks"`
-			Vars struct {
-				GroupVarsGlob string `yaml:"group_vars_glob"`
-				HostVarsGlob  string `yaml:"host_vars_glob"`
-			} `yaml:"vars"`
-		} `yaml:"repos"`
-	} `yaml:"ansible"`
 	Jobs map[string]struct {
 		Enabled     bool     `yaml:"enabled"`
 		Align       string   `yaml:"align,omitempty"`
