@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -10,13 +9,11 @@ import (
 	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	daemon "github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/yourname/XOpsAgent/api"
-	"github.com/yourname/XOpsAgent/internal/config"
-	"github.com/yourname/XOpsAgent/internal/server"
-	"github.com/yourname/XOpsAgent/pkg/telemetry"
 )
 
 type Config struct {
@@ -81,22 +78,6 @@ func runAgent(cfgPath string) error {
 	return http.ListenAndServe(listen, mux)
 }
 
-func runAPI() error {
-	ctx := context.Background()
-	cfg := config.Load()
-	shutdown, err := telemetry.Init(ctx, "aiops", cfg.OtlpEndpoint)
-	if err != nil {
-		return fmt.Errorf("failed to init telemetry: %w", err)
-	}
-	defer func() { _ = shutdown(ctx) }()
-
-	srv, err := server.New(cfg)
-	if err != nil {
-		return fmt.Errorf("server init: %w", err)
-	}
-	return srv.Run(ctx)
-}
-
 func logConnections(cfg *Config) {
 	logger := slog.Default()
 	db, err := sql.Open("pgx", cfg.Inputs.DB.PGURL)
@@ -128,8 +109,8 @@ func checkHTTPEndpoint(logger *slog.Logger, name, url string) {
 }
 
 var (
-	mode    string
-	cfgPath string
+	daemonMode bool
+	cfgPath    string
 )
 
 func main() {
@@ -137,18 +118,25 @@ func main() {
 		Use:   "llm-ops-agent",
 		Short: "LLM Ops Agent service",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			switch mode {
-			case "agent":
-				return runAgent(cfgPath)
-			case "api":
-				return runAPI()
-			default:
-				return fmt.Errorf("unknown mode: %s", mode)
+			if daemonMode {
+				cntxt := &daemon.Context{
+					PidFileName: "xopsagent.pid",
+					PidFilePerm: 0644,
+				}
+				child, err := cntxt.Reborn()
+				if err != nil {
+					return err
+				}
+				if child != nil {
+					return nil
+				}
+				defer cntxt.Release()
 			}
+			return runAgent(cfgPath)
 		},
 	}
-	rootCmd.Flags().StringVar(&mode, "mode", "agent", "mode to run: agent or api")
-	rootCmd.Flags().StringVar(&cfgPath, "config", "/etc/XOpsAgent.yaml", "path to config file (agent mode)")
+	rootCmd.PersistentFlags().BoolVar(&daemonMode, "daemon", true, "run in background")
+	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "/etc/XOpsAgent.yaml", "path to config file")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)

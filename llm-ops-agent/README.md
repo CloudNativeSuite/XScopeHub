@@ -63,9 +63,9 @@ export ARGOCD_TOKEN="<argocd.jwt>"
 export ARGOCD_APP="your-app"
 ```
 
-运行：
+运行（前台调试示例）：
 ```bash
-go run ./cmd
+go run ./cmd --daemon=false
 ```
 
 ### 4) 发送告警（模拟 Alertmanager Webhook）
