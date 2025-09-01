@@ -1,0 +1,4 @@
+# Placeholder configuration for ETL service
+server:
+  api:
+    listen: ":8080"
