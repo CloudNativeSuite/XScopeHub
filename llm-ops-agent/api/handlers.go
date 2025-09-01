@@ -1,31 +1,25 @@
 package api
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"net/http"
-	"strconv"
-	"time"
+        "errors"
+        "fmt"
+        "net/http"
+        "strconv"
+        "time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+        "github.com/gin-gonic/gin"
+        "github.com/google/uuid"
+        "github.com/jackc/pgx/v5"
+        "github.com/jackc/pgx/v5/pgtype"
+        "github.com/prometheus/client_golang/prometheus/promhttp"
 
-	db "github.com/yourname/XOpsAgent/db/sqlc"
-	"github.com/yourname/XOpsAgent/internal/repository"
-	"github.com/yourname/XOpsAgent/workflow"
+        "github.com/yourname/XOpsAgent/ports"
+        "github.com/yourname/XOpsAgent/services/orchestrator"
+        "github.com/yourname/XOpsAgent/workflow"
 )
 
 // RegisterRoutes wires all HTTP handlers for the agent modules.
-type caseService interface {
-	CreateCase(ctx context.Context, args repository.CreateCaseArgs) (db.CreateCaseRow, error)
-	Transition(ctx context.Context, args repository.TransitionArgs) (db.UpdateCaseStatusRow, error)
-}
-
-func RegisterRoutes(r gin.IRoutes, svc caseService) {
+func RegisterRoutes(r gin.IRoutes, svc orchestrator.Service) {
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
@@ -37,7 +31,7 @@ func RegisterRoutes(r gin.IRoutes, svc caseService) {
 }
 
 type caseHandler struct {
-	svc caseService
+        svc orchestrator.Service
 }
 
 type createCaseReq struct {
@@ -53,12 +47,12 @@ func (h *caseHandler) createCase(c *gin.Context) {
 	}
 	idem := c.GetHeader("Idempotency-Key")
 	actor := c.GetHeader("X-Actor")
-	row, err := h.svc.CreateCase(c.Request.Context(), repository.CreateCaseArgs{
-		TenantID: req.TenantID,
-		Title:    req.Title,
-		Actor:    actor,
-		IdemKey:  idem,
-	})
+        row, err := h.svc.CreateCase(c.Request.Context(), ports.CreateCaseArgs{
+                TenantID: req.TenantID,
+                Title:    req.Title,
+                Actor:    actor,
+                IdemKey:  idem,
+        })
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -90,12 +84,12 @@ func (h *caseHandler) transitionCase(c *gin.Context) {
 	idem := c.GetHeader("Idempotency-Key")
 	actor := c.GetHeader("X-Actor")
 	ctx := workflow.Context{Now: time.Now(), Actor: actor}
-	row, err := h.svc.Transition(c.Request.Context(), repository.TransitionArgs{
-		CaseID:  pgtype.UUID{Bytes: uid, Valid: true},
-		Event:   workflow.Event(req.Event),
-		Ctx:     ctx,
-		IfMatch: ver,
-		IdemKey: idem,
+        row, err := h.svc.Transition(c.Request.Context(), ports.TransitionArgs{
+                CaseID:  pgtype.UUID{Bytes: uid, Valid: true},
+                Event:   workflow.Event(req.Event),
+                Ctx:     ctx,
+                IfMatch: ver,
+                IdemKey: idem,
 		Request: []byte{},
 	})
 	if err != nil {

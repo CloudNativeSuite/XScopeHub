@@ -1,37 +1,31 @@
-package repository
+package postgres
 
 import (
-	"context"
-	"encoding/json"
-	"time"
+        "context"
+        "encoding/json"
+        "time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
+        "github.com/jackc/pgx/v5"
+        "github.com/jackc/pgx/v5/pgtype"
+        "github.com/jackc/pgx/v5/pgxpool"
 
-	db "github.com/yourname/XOpsAgent/db/sqlc"
-	"github.com/yourname/XOpsAgent/workflow"
+        db "github.com/yourname/XOpsAgent/db/sqlc"
+        "github.com/yourname/XOpsAgent/ports"
+        "github.com/yourname/XOpsAgent/workflow"
 )
 
 type CaseRepository struct {
-	pool    *pgxpool.Pool
-	queries *db.Queries
+        pool    *pgxpool.Pool
+        queries *db.Queries
 }
 
 func NewCaseRepository(pool *pgxpool.Pool) *CaseRepository {
-	return &CaseRepository{pool: pool, queries: db.New(pool)}
-}
-
-type CreateCaseArgs struct {
-	TenantID int64
-	Title    string
-	Actor    string
-	IdemKey  string
+        return &CaseRepository{pool: pool, queries: db.New(pool)}
 }
 
 // CreateCase inserts a new case with initial state NEW and records timeline,
 // outbox and idempotency.
-func (r *CaseRepository) CreateCase(ctx context.Context, args CreateCaseArgs) (db.CreateCaseRow, error) {
+func (r *CaseRepository) CreateCase(ctx context.Context, args ports.CreateCaseArgs) (db.CreateCaseRow, error) {
 	if args.IdemKey != "" {
 		if idem, err := r.queries.GetIdempotency(ctx, args.IdemKey); err == nil && idem.IdemKey != "" {
 			var row db.CreateCaseRow
@@ -105,18 +99,9 @@ func (r *CaseRepository) CreateCase(ctx context.Context, args CreateCaseArgs) (d
 	return caseRow, nil
 }
 
-type TransitionArgs struct {
-	CaseID  pgtype.UUID
-	Event   workflow.Event
-	Ctx     workflow.Context
-	IfMatch int64
-	IdemKey string
-	Request []byte
-}
-
 // Transition performs a state transition using the workflow FSM and records
 // timeline, outbox and idempotency.
-func (r *CaseRepository) Transition(ctx context.Context, args TransitionArgs) (db.UpdateCaseStatusRow, error) {
+func (r *CaseRepository) Transition(ctx context.Context, args ports.TransitionArgs) (db.UpdateCaseStatusRow, error) {
 	if args.IdemKey != "" {
 		if idem, err := r.queries.GetIdempotency(ctx, args.IdemKey); err == nil && idem.IdemKey != "" {
 			var row db.UpdateCaseStatusRow

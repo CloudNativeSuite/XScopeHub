@@ -1,24 +1,25 @@
 package server
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
-	"log/slog"
+        "context"
+        "database/sql"
+        "fmt"
+        "log/slog"
 
-	"github.com/gin-gonic/gin"
-	"github.com/nats-io/nats.go"
-	"github.com/segmentio/kafka-go"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+        "github.com/gin-gonic/gin"
+        "github.com/nats-io/nats.go"
+        "github.com/segmentio/kafka-go"
+        "go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib"
+        "github.com/jackc/pgx/v5/pgxpool"
+        _ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/yourname/XOpsAgent/api"
-	"github.com/yourname/XOpsAgent/internal/config"
-	dbpkg "github.com/yourname/XOpsAgent/internal/db"
-	"github.com/yourname/XOpsAgent/internal/repository"
-	logpkg "github.com/yourname/XOpsAgent/pkg/log"
+        "github.com/yourname/XOpsAgent/api"
+        "github.com/yourname/XOpsAgent/internal/config"
+        dbpkg "github.com/yourname/XOpsAgent/internal/db"
+        "github.com/yourname/XOpsAgent/ports/postgres"
+        "github.com/yourname/XOpsAgent/services/orchestrator"
+        logpkg "github.com/yourname/XOpsAgent/pkg/log"
 )
 
 // Server wraps application dependencies and HTTP router.
@@ -50,22 +51,23 @@ func New(cfg config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	repo := repository.NewCaseRepository(pool)
+        repo := postgres.NewCaseRepository(pool)
+        svc := orchestrator.New(repo)
 
-	nc, err := nats.Connect(cfg.NatsURL)
+        nc, err := nats.Connect(cfg.NatsURL)
 	if err != nil {
 		return nil, err
 	}
 
 	kw := kafka.NewWriter(kafka.WriterConfig{Brokers: cfg.KafkaBrokers, Topic: "events"})
 
-	r := gin.New()
-	r.Use(gin.Logger(), otelgin.Middleware("aiops"))
-	r.StaticFile("/openapi.yaml", "/api/openapi.yaml")
-	api.RegisterRoutes(r, repo)
+        r := gin.New()
+        r.Use(gin.Logger(), otelgin.Middleware("aiops"))
+        r.StaticFile("/openapi.yaml", "/api/openapi.yaml")
+        api.RegisterRoutes(r, svc)
 
-	srv := &Server{cfg: cfg, router: r, db: sqlDB, nats: nc, kafka: kw, logger: logger}
-	return srv, nil
+        srv := &Server{cfg: cfg, router: r, db: sqlDB, nats: nc, kafka: kw, logger: logger}
+        return srv, nil
 }
 
 // Run starts the HTTP server.
