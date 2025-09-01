@@ -104,7 +104,7 @@ func runAgent(cfgPath string) error {
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
-	api.RegisterRoutes(r)
+	api.RegisterRoutes(r, nil)
 
 	listen := cfg.Server.API.Listen
 	if listen == "" {

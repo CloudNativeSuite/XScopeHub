@@ -8,6 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CaseTimeline struct {
+	ID      int64
+	CaseID  pgtype.UUID
+	Ts      pgtype.Timestamptz
+	Actor   pgtype.Text
+	Event   pgtype.Text
+	Payload []byte
+}
+
 type Idempotency struct {
 	IdemKey   string
 	Request   []byte
@@ -26,6 +35,7 @@ type OpsCase struct {
 	CreatedAt  pgtype.Timestamptz
 	UpdatedAt  pgtype.Timestamptz
 	Labels     []byte
+	Version    int64
 }
 
 type Outbox struct {
