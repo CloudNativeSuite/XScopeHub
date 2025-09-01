@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS case_timeline;
+ALTER TABLE ops_case DROP COLUMN IF EXISTS version;
