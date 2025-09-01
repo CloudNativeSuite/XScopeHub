@@ -1,3 +1,4 @@
+.DS_Store
 opentelemetry-collector/
 agents/process-exporter/
 agents/node_exporter/
