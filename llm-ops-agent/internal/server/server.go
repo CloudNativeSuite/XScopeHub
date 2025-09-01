@@ -5,18 +5,19 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/yourname/XOpsAgent/api"
 	"github.com/yourname/XOpsAgent/internal/config"
 	dbpkg "github.com/yourname/XOpsAgent/internal/db"
+	"github.com/yourname/XOpsAgent/internal/repository"
 	logpkg "github.com/yourname/XOpsAgent/pkg/log"
 )
 
@@ -44,6 +45,13 @@ func New(cfg config.Config) (*Server, error) {
 	// Initialize sqlc queries to ensure code generation is wired.
 	_ = dbpkg.New(sqlDB)
 
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	repo := repository.NewCaseRepository(pool)
+
 	nc, err := nats.Connect(cfg.NatsURL)
 	if err != nil {
 		return nil, err
@@ -54,17 +62,10 @@ func New(cfg config.Config) (*Server, error) {
 	r := gin.New()
 	r.Use(gin.Logger(), otelgin.Middleware("aiops"))
 	r.StaticFile("/openapi.yaml", "/api/openapi.yaml")
+	api.RegisterRoutes(r, repo)
 
 	srv := &Server{cfg: cfg, router: r, db: sqlDB, nats: nc, kafka: kw, logger: logger}
-	srv.routes()
 	return srv, nil
-}
-
-func (s *Server) routes() {
-	s.router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-	s.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 }
 
 // Run starts the HTTP server.
