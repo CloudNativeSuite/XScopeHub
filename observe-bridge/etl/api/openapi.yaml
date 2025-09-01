@@ -15,3 +15,110 @@ paths:
       responses:
         '200':
           description: metrics
+  /oo/stream:
+    get:
+      summary: Stream OpenObserve data
+      parameters:
+        - in: query
+          name: tenant
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+        - in: query
+          name: to
+          schema:
+            type: string
+      responses:
+        '200':
+          description: stream
+  /pgw/flush:
+    post:
+      summary: Flush aggregated data to Postgres
+      responses:
+        '200':
+          description: ok
+  /pgw/topo/edges:
+    post:
+      summary: Upsert topology edges
+      responses:
+        '200':
+          description: ok
+  /jobs/ooagg/run:
+    post:
+      summary: Trigger OO aggregation job
+      parameters:
+        - in: query
+          name: tenant
+          schema:
+            type: string
+        - in: query
+          name: window
+          schema:
+            type: string
+      responses:
+        '200':
+          description: queued
+  /jobs/age_refresh/run:
+    post:
+      summary: Trigger AGE refresh job
+      parameters:
+        - in: query
+          name: tenant
+          schema:
+            type: string
+        - in: query
+          name: window
+          schema:
+            type: string
+      responses:
+        '200':
+          description: queued
+  /jobs/topo/iac/run:
+    post:
+      summary: Trigger topology IaC job
+      responses:
+        '200':
+          description: queued
+  /jobs/topo/ansible/run:
+    post:
+      summary: Trigger topology Ansible job
+      responses:
+        '200':
+          description: queued
+  /events/enqueue:
+    post:
+      summary: Enqueue CloudEvent
+      responses:
+        '200':
+          description: queued
+  /scheduler/tick:
+    post:
+      summary: Run scheduler tick
+      responses:
+        '200':
+          description: ok
+  /topo/iac/discover:
+    get:
+      summary: Discover IaC topology edges
+      parameters:
+        - in: query
+          name: tenant
+          schema:
+            type: string
+      responses:
+        '200':
+          description: edges
+  /topo/ansible/extract:
+    get:
+      summary: Extract Ansible dependencies
+      parameters:
+        - in: query
+          name: tenant
+          schema:
+            type: string
+      responses:
+        '200':
+          description: edges
