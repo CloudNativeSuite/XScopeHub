@@ -14,7 +14,7 @@ import (
 const createCase = `-- name: CreateCase :one
 INSERT INTO ops_case (tenant_id, title, severity, status, resource_id)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING case_id, tenant_id, title, severity::text AS severity, status, resource_id, created_at, updated_at, labels
+RETURNING case_id, tenant_id, title, severity::text AS severity, status, resource_id, created_at, updated_at, labels, version
 `
 
 type CreateCaseParams struct {
@@ -35,6 +35,7 @@ type CreateCaseRow struct {
 	CreatedAt  pgtype.Timestamptz
 	UpdatedAt  pgtype.Timestamptz
 	Labels     []byte
+	Version    int64
 }
 
 func (q *Queries) CreateCase(ctx context.Context, arg CreateCaseParams) (CreateCaseRow, error) {
@@ -56,8 +57,88 @@ func (q *Queries) CreateCase(ctx context.Context, arg CreateCaseParams) (CreateC
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Labels,
+		&i.Version,
 	)
 	return i, err
+}
+
+const getCaseForUpdate = `-- name: GetCaseForUpdate :one
+SELECT case_id, tenant_id, title, severity::text AS severity, status, resource_id, created_at, updated_at, labels, version
+FROM ops_case
+WHERE case_id = $1
+FOR UPDATE
+`
+
+type GetCaseForUpdateRow struct {
+	CaseID     pgtype.UUID
+	TenantID   int64
+	Title      string
+	Severity   string
+	Status     string
+	ResourceID pgtype.Int8
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	Labels     []byte
+	Version    int64
+}
+
+func (q *Queries) GetCaseForUpdate(ctx context.Context, caseID pgtype.UUID) (GetCaseForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getCaseForUpdate, caseID)
+	var i GetCaseForUpdateRow
+	err := row.Scan(
+		&i.CaseID,
+		&i.TenantID,
+		&i.Title,
+		&i.Severity,
+		&i.Status,
+		&i.ResourceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Labels,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getIdempotency = `-- name: GetIdempotency :one
+SELECT idem_key, request, response, created_at, ttl
+FROM idempotency
+WHERE idem_key = $1
+`
+
+func (q *Queries) GetIdempotency(ctx context.Context, idemKey string) (Idempotency, error) {
+	row := q.db.QueryRow(ctx, getIdempotency, idemKey)
+	var i Idempotency
+	err := row.Scan(
+		&i.IdemKey,
+		&i.Request,
+		&i.Response,
+		&i.CreatedAt,
+		&i.Ttl,
+	)
+	return i, err
+}
+
+const insertIdempotency = `-- name: InsertIdempotency :exec
+INSERT INTO idempotency (idem_key, request, response, ttl)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertIdempotencyParams struct {
+	IdemKey  string
+	Request  []byte
+	Response []byte
+	Ttl      pgtype.Timestamptz
+}
+
+func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyParams) error {
+	_, err := q.db.Exec(ctx, insertIdempotency,
+		arg.IdemKey,
+		arg.Request,
+		arg.Response,
+		arg.Ttl,
+	)
+	return err
 }
 
 const insertOutbox = `-- name: InsertOutbox :exec
@@ -77,6 +158,30 @@ func (q *Queries) InsertOutbox(ctx context.Context, arg InsertOutboxParams) erro
 		arg.Aggregate,
 		arg.AggregateID,
 		arg.Topic,
+		arg.Payload,
+	)
+	return err
+}
+
+const insertTimeline = `-- name: InsertTimeline :exec
+INSERT INTO case_timeline (case_id, ts, actor, event, payload)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertTimelineParams struct {
+	CaseID  pgtype.UUID
+	Ts      pgtype.Timestamptz
+	Actor   pgtype.Text
+	Event   pgtype.Text
+	Payload []byte
+}
+
+func (q *Queries) InsertTimeline(ctx context.Context, arg InsertTimelineParams) error {
+	_, err := q.db.Exec(ctx, insertTimeline,
+		arg.CaseID,
+		arg.Ts,
+		arg.Actor,
+		arg.Event,
 		arg.Payload,
 	)
 	return err
@@ -135,4 +240,48 @@ WHERE id = ANY($1::bigint[])
 func (q *Queries) MarkOutboxPublished(ctx context.Context, dollar_1 []int64) error {
 	_, err := q.db.Exec(ctx, markOutboxPublished, dollar_1)
 	return err
+}
+
+const updateCaseStatus = `-- name: UpdateCaseStatus :one
+UPDATE ops_case
+SET status = $2, updated_at = now(), version = version + 1
+WHERE case_id = $1 AND version = $3
+RETURNING case_id, tenant_id, title, severity::text AS severity, status, resource_id, created_at, updated_at, labels, version
+`
+
+type UpdateCaseStatusParams struct {
+	CaseID  pgtype.UUID
+	Status  string
+	Version int64
+}
+
+type UpdateCaseStatusRow struct {
+	CaseID     pgtype.UUID
+	TenantID   int64
+	Title      string
+	Severity   string
+	Status     string
+	ResourceID pgtype.Int8
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	Labels     []byte
+	Version    int64
+}
+
+func (q *Queries) UpdateCaseStatus(ctx context.Context, arg UpdateCaseStatusParams) (UpdateCaseStatusRow, error) {
+	row := q.db.QueryRow(ctx, updateCaseStatus, arg.CaseID, arg.Status, arg.Version)
+	var i UpdateCaseStatusRow
+	err := row.Scan(
+		&i.CaseID,
+		&i.TenantID,
+		&i.Title,
+		&i.Severity,
+		&i.Status,
+		&i.ResourceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Labels,
+		&i.Version,
+	)
+	return i, err
 }
