@@ -1,0 +1,21 @@
+server:
+  api:
+    listen: "0.0.0.0:8080"
+inputs:
+  openobserve:
+    endpoint: "${OPENOBSERVE_URL}"
+    headers:
+      Authorization: "Basic ${OPENOBSERVE_AUTH}"
+outputs:
+  postgres:
+    url: "${DATABASE_URL}"
+scheduler:
+  jitter: "1s"
+  max_backfill: "1m"
+  reload: { fs_watch: false }
+tenants:
+  initial_lookback:
+    oo-agg: "1h"
+  list: [{ code: "default", id: 1 }]
+# disable jobs for tests
+jobs: {}
