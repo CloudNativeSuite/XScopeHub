@@ -10,7 +10,8 @@ test:
 
 # Run database migrations
 migrate:
-	@go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0 -path db/migrations -database $$DATABASE_URL up
+	@DATABASE_URL=$${DATABASE_URL:-$$(grep -A1 "postgres:" ../config/XOpsAgent.yaml | grep url | awk '{print $$2}' | tr -d '"')} && \
+	go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0 -path db/migrations -database $$DATABASE_URL up
 
 # Initialize database schema using config/XOpsAgent.yaml
 init-db:
