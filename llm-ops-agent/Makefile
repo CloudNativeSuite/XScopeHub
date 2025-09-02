@@ -10,7 +10,7 @@ test:
 
 # Run database migrations
 migrate:
-	@go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0 -path internal/migrations -database $$DATABASE_URL up
+	@go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0 -path db/migrations -database $$DATABASE_URL up
 
 # Initialize database schema using config/XOpsAgent.yaml
 init-db:
