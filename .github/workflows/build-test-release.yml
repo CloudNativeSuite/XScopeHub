@@ -114,13 +114,10 @@ jobs:
           - component: llm-ops-agent
             go_mod: llm-ops-agent/go.mod
             workdir: llm-ops-agent
-            database_url: postgres://postgres:postgres@localhost:5432/ops?sslmode=disable
-            integration_setup: docker compose -f ../deploy/docker-compose.yml up -d
-            integration_test_cmd: |
-              go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-              make migrate
-              make test
-            integration_teardown: docker compose -f deploy/docker-compose.yml down
+            database_url: ''
+            integration_setup: ''
+            integration_test_cmd: make integration-tests
+            integration_teardown: ''
           - component: observe-bridge
             go_mod: observe-bridge/go.mod
             workdir: observe-bridge
