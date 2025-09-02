@@ -24,7 +24,7 @@ init-db:
 	psql $(PG_URL) -c 'SELECT 1'
 
 migrate:
-	$(GO) install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	$(GO) install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	migrate -path migrations/postgres -database $(PG_URL) up
 
 integration-tests: build
