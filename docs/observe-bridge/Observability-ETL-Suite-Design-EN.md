@@ -1,4 +1,3 @@
-
 A compact Go-based orchestration and ETL stack that turns raw observability data (OpenObserve) into queryable aggregates (Timescale/Postgres), an active service-call graph (AGE), and time-aware topology from IaC/Ansible.
 
 1. Overview
@@ -19,47 +18,47 @@ Persistence of job runs in PG (etl_job_run) for exactly-once per (job, tenant, w
 
 2. Project Layout (merged)
 
-├─ etl/cmd/etl/               # CLI entrypoint
-│  └─ main.go
+├─ etl/cmd/etl/ # CLI entrypoint
+│ └─ main.go
 ├─ pkg/
-│  ├─ scheduler/              # window calc / enqueue
-│  ├─ runner/                 # worker pool / retries / DAG fanout
-│  ├─ registry/               # Job interface + registry
-│  ├─ store/                  # PG queue + run-state + once semantics
-│  ├─ window/                 # time alignment helpers
-│  ├─ events/                 # HTTP/CloudEvents enqueue
-│  ├─ oo/                     # OpenObserve readers (S3/API)
-│  ├─ agg/                    # 1m/5m aggregators
-│  ├─ patterns/               # log template mining (Drain/RE2)
-│  ├─ iac/                    # IaC/Cloud discovery
-│  ├─ ansible/                # inventory/roles dependency extraction
-│  └─ pgw/                    # Postgres writer (COPY + upserts)
+│ ├─ scheduler/ # window calc / enqueue
+│ ├─ runner/ # worker pool / retries / DAG fanout
+│ ├─ registry/ # Job interface + registry
+│ ├─ store/ # PG queue + run-state + once semantics
+│ ├─ window/ # time alignment helpers
+│ ├─ events/ # HTTP/CloudEvents enqueue
+│ ├─ oo/ # OpenObserve readers (S3/API)
+│ ├─ agg/ # 1m/5m aggregators
+│ ├─ patterns/ # log template mining (Drain/RE2)
+│ ├─ iac/ # IaC/Cloud discovery
+│ ├─ ansible/ # inventory/roles dependency extraction
+│ └─ pgw/ # Postgres writer (COPY + upserts)
 ├─ jobs/
-│  ├─ ooagg.go                # OO→PG nearline aggregates
-│  ├─ age_refresh.go          # active CALLS graph (AGE)
-│  ├─ topo_iac.go             # infra topology
-│  └─ topo_ansible.go         # app dependency topology
+│ ├─ ooagg.go # OO→PG nearline aggregates
+│ ├─ age_refresh.go # active CALLS graph (AGE)
+│ ├─ topo_iac.go # infra topology
+│ └─ topo_ansible.go # app dependency topology
 ├─ sql/
-│  └─ age_refresh.sql         # AGE CALLS refresh
+│ └─ age_refresh.sql # AGE CALLS refresh
 └─ configs/
-   └─ etl.yaml                # scheduling & lookback config
+└─ etl.yaml # scheduling & lookback config
 
 3. Data Tables (consolidated)
-Domain	Table	Purpose (granularity)	Key/Index Highlights
-Dim	dim_tenant	tenants/domains	code unique
-Dim	dim_resource	normalized URN per resource	urn unique; type, labels GIN
-Locator	oo_locator	backref to OO object + time window	time index; unique composite recommended
-Metrics	metric_1m	1m aggregates: avg/max/p95	hypertable on bucket; PK (bucket,tenant,resource,metric)
-Calls	service_call_5m	5m A→B rps/err/p50/p95	hypertable; PK (bucket,tenant,src,dst)
-Logs	log_pattern	template dictionary	tenant index; pattern trigram GIN
-Logs	log_pattern_5m	5m counts per fingerprint/resource	hypertable; PK (bucket,tenant,resource,fingerprint)
-Topo	topo_edge_time	temporal edges with tstzrange valid	btree_gist/GIST on range
-KB	kb_doc / kb_chunk	runbooks & embeddings	HNSW on embedding
-Events	event_envelope	event envelope	time desc index
-Events	evidence_link	polymorphic links to PG/OO	unique on (event,dim,ref_pg_hash,coalesce(ref_oo,0))
-ETL	etl_job_run	run ledger (once)	unique (job,tenant,window_from,window_to)
+   Domain Table Purpose (granularity) Key/Index Highlights
+   Dim dim_tenant tenants/domains code unique
+   Dim dim_resource normalized URN per resource urn unique; type, labels GIN
+   Locator oo_locator backref to OO object + time window time index; unique composite recommended
+   Metrics metric_1m 1m aggregates: avg/max/p95 hypertable on bucket; PK (bucket,tenant,resource,metric)
+   Calls service_call_5m 5m A→B rps/err/p50/p95 hypertable; PK (bucket,tenant,src,dst)
+   Logs log_pattern template dictionary tenant index; pattern trigram GIN
+   Logs log_pattern_5m 5m counts per fingerprint/resource hypertable; PK (bucket,tenant,resource,fingerprint)
+   Topo topo_edge_time temporal edges with tstzrange valid btree_gist/GIST on range
+   KB kb_doc / kb_chunk runbooks & embeddings HNSW on embedding
+   Events event_envelope event envelope time desc index
+   Events evidence_link polymorphic links to PG/OO unique on (event,dim,ref_pg_hash,coalesce(ref_oo,0))
+   ETL etl_job_run run ledger (once) unique (job,tenant,window_from,window_to)
 4. Pipelines
-4.1 OO→PG (Nearline)
+   4.1 OO→PG (Nearline)
 
 Align 1m, Delay 2m, Interval 1m.
 
@@ -106,13 +105,13 @@ Retry: exponential backoff (2s → … → 5m cap). Optional circuit breaker on 
 Job interface
 
 type Job interface {
-  Name() string
-  Interval() time.Duration   // 0 = event-driven only
-  Align() time.Duration
-  Delay() time.Duration
-  Concurrency() int
-  After() []string           // upstream job names
-  Run(ctx context.Context, tenantID int64, w Window, args map[string]any) error
+Name() string
+Interval() time.Duration // 0 = event-driven only
+Align() time.Duration
+Delay() time.Duration
+Concurrency() int
+After() []string // upstream job names
+Run(ctx context.Context, tenantID int64, w Window, args map[string]any) error
 }
 
 6. Module APIs (selected)
@@ -121,13 +120,12 @@ OO reader
 
 type RecordKind string // "metric" | "log" | "trace"
 type Record struct {
-  Kind RecordKind
-  Time time.Time       // UTC
-  URN  string          // normalized
-  Attrs map[string]any // value/labels or span/log fields
+Kind RecordKind
+Time time.Time // UTC
+URN string // normalized
+Attrs map[string]any // value/labels or span/log fields
 }
 func Stream(ctx context.Context, tenant int64, w Window, fn func(Record) error) error
-
 
 Aggregator
 
@@ -135,7 +133,6 @@ func Reset()
 func Feed(rec oo.Record)
 type Out struct { Metrics1m []MetricRow; Calls5m []CallRow; LogPatterns5m []LogPatRow; PatternsUpsert []PatternRow; Locators []LocatorRow }
 func Drain() Out
-
 
 PG writer
 
@@ -146,7 +143,7 @@ func UpsertTopoEdges(ctx context.Context, tenant int64, edges []iac.Edge) error
 
 Time inclusion: record belongs to window if From ≤ ts < To.
 
-Resource identity: urn:* unique per resource; dim_resource(urn) upserted.
+Resource identity: urn:\* unique per resource; dim_resource(urn) upserted.
 
 Idempotency: every target table keyed to enable ON CONFLICT DO UPDATE.
 
@@ -174,7 +171,7 @@ Indices: time-desc compound + GIN(labels); HNSW for KB.
 
 10. Security & Tenancy
 
-Credentials via env/secret (PG_URL, OO_*).
+Credentials via env/secret (PG*URL, OO*\*).
 
 Optional PG RLS by tenant_id.
 
@@ -185,15 +182,15 @@ Mask sensitive label/metadata fields on write.
 configs/etl.yaml
 
 tenants:
-  initial_lookback:
-    oo-agg:       "24h"
-    topo-iac:     "48h"
-    topo-ansible: "168h"
+initial_lookback:
+oo-agg: "24h"
+topo-iac: "48h"
+topo-ansible: "168h"
 jobs:
-  oo-agg: { delay: "2m", align: "1m", interval: "1m", concurrency: 2 }
-  age-refresh: { interval: "0s" }   # dependency-driven
-  topo-iac: { interval: "15m" }
-  topo-ansible: { interval: "1h" }
+oo-agg: { delay: "2m", align: "1m", interval: "1m", concurrency: 2 }
+age-refresh: { interval: "0s" } # dependency-driven
+topo-iac: { interval: "15m" }
+topo-ansible: { interval: "1h" }
 
 12. Bootstrap (DDL)
 
@@ -221,7 +218,7 @@ Unit: agg statistics; patterns fingerprint stability.
 
 Integration: mock oo.Stream → pgw.Flush into test PG; verify PK conflicts & upserts.
 
-Perf soak: 10 windows * (5k logs + 1k spans + 500 metrics), steady throughput, memory cap.
+Perf soak: 10 windows \* (5k logs + 1k spans + 500 metrics), steady throughput, memory cap.
 
 Topology diff: same edge set twice (no dup); remove an edge then re-run (interval closes).
 
@@ -284,34 +281,33 @@ Desc: Export counters and histograms (ingested records, batch time, failures, la
 Test: Under steady load window lag ≈ Delay + Align; alerts on repeated failures.
 
 16. Mermaid Overview
-flowchart LR
-  subgraph Ingest
+    flowchart LR
+    subgraph Ingest
     OO[OpenObserve (S3/API)]
-  end
-  subgraph ETL
+    end
+    subgraph ETL
     R[oo.Stream]
     A[agg 1m/5m]
     W[pgw.Flush]
-  end
-  subgraph PG
+    end
+    subgraph PG
     M[metric_1m]
     C[service_call_5m]
     L[log_pattern_5m]
     D[log_pattern]
     O[oo_locator]
     T[topo_edge_time]
-  end
-  subgraph AGE
+    end
+    subgraph AGE
     G[(:Resource)-[:CALLS]->(:Resource)]
-  end
-  OO --> R --> A --> W
-  W --> M
-  W --> C
-  W --> L
-  W --> D
-  W --> O
-  C -->|10m active| G
-
+    end
+    OO --> R --> A --> W
+    W --> M
+    W --> C
+    W --> L
+    W --> D
+    W --> O
+    C -->|10m active| G
 
 Name: Observability ETL Suite
 Scope: OO→PG aggregates, AGE active graph, IaC/Ansible topology — all orchestrated in one Go binary with windowed, idempotent ETL runs.
