@@ -16,10 +16,11 @@ Start TimescaleDB, NATS, Redpanda and the OTel Collector:
 docker compose up -d
 ```
 
-Run database migrations (requires `migrate` with the Postgres driver):
+Run database migrations (requires `migrate` with the Postgres driver). If `DATABASE_URL` is not set,
+the Makefile will read the URL from `config/XOpsAgent.yaml`.
 
 ```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/ops?sslmode=disable"
+# export DATABASE_URL="postgres://postgres:postgres@localhost:5432/ops?sslmode=disable"
 make migrate
 ```
 
