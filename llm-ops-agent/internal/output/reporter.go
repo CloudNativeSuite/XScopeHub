@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/yourname/XOpsAgent/internal/model"
-	"github.com/yourname/XOpsAgent/utils"
+	"github.com/yourname/XOpsAgent/internal/utils"
 )
 
 // GenerateReport prints an analysis report.
