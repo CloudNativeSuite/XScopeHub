@@ -1,4 +1,4 @@
-.PHONY: run test migrate deps tidy build clean-mod clean
+.PHONY: run test migrate init-db deps tidy build clean-mod clean
 
 # Run the API via unified binary
 run:
@@ -10,7 +10,12 @@ test:
 
 # Run database migrations
 migrate:
-	migrate -path internal/migrations -database $$DATABASE_URL up
+	@go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0 -path internal/migrations -database $$DATABASE_URL up
+
+# Initialize database schema using config/XOpsAgent.yaml
+init-db:
+	@DB_URL=$$(grep -A1 "postgres:" ../config/XOpsAgent.yaml | grep url | awk '{print $$2}' | tr -d '"') && \
+	psql $$DB_URL -f ../db/schema.sql
 
 # Install dependencies and build
 deps: tidy build
