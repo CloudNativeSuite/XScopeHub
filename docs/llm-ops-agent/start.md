@@ -1,44 +1,44 @@
-
 快速开始
-1) 启动 TimescaleDB + OpenObserve + OTel Collector
-docker compose up -d
-OpenObserve UI: http://localhost:5080 （默认账号 admin@example.com / ComplexPass123!）
+
+1. 启动 TimescaleDB + OpenObserve + OTel Collector
+   docker compose up -d
+   OpenObserve UI: http://localhost:5080 （默认账号 admin@example.com / ComplexPass123!）
 
 OTLP 入口：http://localhost:5080/api/default/
 
-2) 初始化数据库
-scripts/load_schema.sh
-3) 配置环境变量并运行 Agent
-创建 .env（或直接 export 环境变量）：
+2. 初始化数据库
+   scripts/load_schema.sh
+3. 配置环境变量并运行 Agent
+   创建 .env（或直接 export 环境变量）：
 
 export PG_URL="postgres://postgres:postgres@127.0.0.1:5432/ops?sslmode=disable"
 export LISTEN_ADDR=":8080"
 
 # GitHub PR 所需（使用你的仓库）
+
 export GITHUB_TOKEN="<ghp_xxx>"
 export GITHUB_OWNER="your-github-user-or-org"
 export GITHUB_REPO="your-gitops-repo"
 export GITHUB_BASE_BRANCH="main"
-export GITHUB_FILE_PATH="charts/app/values.yaml"   # 该文件需存在
-export FLAG_PATH="featureFlags.recommendation_v2"  # 要切的布尔开关路径
+export GITHUB_FILE_PATH="charts/app/values.yaml" # 该文件需存在
+export FLAG_PATH="featureFlags.recommendation_v2" # 要切的布尔开关路径
 
 # 可选：ArgoCD
+
 export ARGOCD_URL="https://argocd.example.com"
 export ARGOCD_TOKEN="<argocd.jwt>"
 export ARGOCD_APP="your-app"
 运行：
 
-go run ./cmd
-4) 发送告警（模拟 Alertmanager Webhook）
+go run ./cmd 4) 发送告警（模拟 Alertmanager Webhook）
 curl -XPOST http://localhost:8080/alertmanager -H 'Content-Type: application/json' -d '{
-  "status": "firing",
-  "commonLabels": { "service": "checkout" },
-  "alerts": [ { "labels": { "service": "checkout" }, "annotations": { "summary": "p95 latency high" } } ]
+"status": "firing",
+"commonLabels": { "service": "checkout" },
+"alerts": [ { "labels": { "service": "checkout" }, "annotations": { "summary": "p95 latency high" } } ]
 }'
 返回类似：
 
-{"incident_id":1,"pr_url":"https://github.com/<owner>/<repo>/pull/123","verified":false}
-5) Timescale 验证（演示数据）
+{"incident_id":1,"pr_url":"https://github.com/<owner>/<repo>/pull/123","verified":false} 5) Timescale 验证（演示数据）
 先生成 20 分钟样本：
 
 SELECT seed_latency('checkout', 400, 120);
@@ -60,8 +60,8 @@ configs/otelcol.yaml 已配置 otlphttp/openobserve 导出器，开箱即上报�
 GitOps 优先，直连操作需 RBAC + 审计。
 把“规则+RAG 计划器”放在独立 planner/ 模块；本 PoC 仅演示“关闭开关”。
 常见问题
-PR 失败：检查 GITHUB_* 变量、values.yaml 路径是否存在、Token 权限（repo:contents, pull_request）。
-ArgoCD 跳过：不配置 ARGOCD_* 就会直接跳过等待环节。
+PR 失败：检查 GITHUB*\* 变量、values.yaml 路径是否存在、Token 权限（repo:contents, pull_request）。
+ArgoCD 跳过：不配置 ARGOCD*\* 就会直接跳过等待环节。
 Timescale 没数据：先执行 seed_latency() 或把业务指标写入 metrics_point
 CI
 直接用 API 触发（高级用法）

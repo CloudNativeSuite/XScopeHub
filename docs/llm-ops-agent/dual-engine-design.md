@@ -15,6 +15,7 @@ The goal is to keep tables small yet performant and extensible.
 ## Table Blueprint
 
 ### 1. Metrics (Time Series)
+
 ```sql
 CREATE TABLE metrics (
   time        TIMESTAMPTZ NOT NULL,
@@ -29,6 +30,7 @@ CREATE INDEX ON metrics USING GIN (labels);
 ```
 
 ### 2. Logs
+
 ```sql
 CREATE TABLE logs (
   time     TIMESTAMPTZ NOT NULL,
@@ -43,6 +45,7 @@ CREATE INDEX ON logs USING GIN (fields);
 ```
 
 ### 3. Traces
+
 ```sql
 CREATE TABLE traces (
   trace_id    UUID,
@@ -60,15 +63,18 @@ CREATE INDEX ON traces (service, start_time DESC);
 ```
 
 ### 4. Topology (Graph via AGE)
+
 ```sql
 SELECT create_graph('topology');
 CREATE VLABEL topology.resource;
 CREATE ELABEL topology.link;
 -- Example usage: (:resource)-[:link {role:'depends_on'}]->(:resource)
 ```
+
 The graph captures relationships between resources such as services, hosts, or containers.
 
 ### 5. Knowledge Base / Vectors
+
 ```sql
 CREATE TABLE kb_docs (
   id        BIGSERIAL PRIMARY KEY,
@@ -78,6 +84,7 @@ CREATE TABLE kb_docs (
 );
 CREATE INDEX ON kb_docs USING ivfflat (embedding vector_l2_ops);
 ```
+
 Embeddings enable semantic search across documents, runbooks, or past incidents.
 
 ## Extensibility and Performance
