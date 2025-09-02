@@ -1,11 +1,4 @@
--- Initial schema for ops cases and outbox
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'severity') THEN
-    CREATE TYPE severity AS ENUM ('TRACE','DEBUG','INFO','WARN','ERROR','FATAL');
-  END IF;
-END $$;
+-- Base extensions and severity enum are created in db/schema.sql
 
 CREATE TABLE IF NOT EXISTS ops_case (
   case_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
