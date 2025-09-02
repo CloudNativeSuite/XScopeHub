@@ -44,4 +44,3 @@ psql -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 ```
 
 Then execute `db/init.sql` against your database.
-

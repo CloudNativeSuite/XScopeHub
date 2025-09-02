@@ -1,4 +1,3 @@
-
 **从零到可跑（Walking Skeleton）**的实现顺序与切分方式。核心思路：先打通一条“最短闭环”（人工触发 → 计划 → 审批 → 执行 → 验证 → 归档），其余模块逐步替换/加深。每一步都能运行、有度量、有回滚。
 
 一、建议实现顺序（Why this order）
@@ -177,22 +176,22 @@ internal/pubsub/：NATS/Redpanda 客户端（至少一次投递 + 去重）
 
 七、落地清单（可以直接拆 Issue/PR）
 
- workflow 与 plans 包落库；生成 OAS 草图与 mocks。
+workflow 与 plans 包落库；生成 OAS 草图与 mocks。
 
- Orchestrator：/case/* + outbox publisher + 三类测试。
+Orchestrator：/case/\* + outbox publisher + 三类测试。
 
- Planner：/plan/generate + plan_proposed 入库 + 守卫接线。
+Planner：/plan/generate + plan_proposed 入库 + 守卫接线。
 
- Gatekeeper：/gate/eval + 本地策略 + plan_approved。
+Gatekeeper：/gate/eval + 本地策略 + plan_approved。
 
- Executor：/adapter/exec + adapter(script/k8s) + step runner + 事件回写。
+Executor：/adapter/exec + adapter(script/k8s) + step runner + 事件回写。
 
- Verifier：查询 metric_1m → verify_checkpoint → 触发 EVerifyPass/Failed。
+Verifier：查询 metric_1m → verify_checkpoint → 触发 EVerifyPass/Failed。
 
- Analyst：定时规则引擎最小实现 + /analyze/run。
+Analyst：定时规则引擎最小实现 + /analyze/run。
 
- Sensor：/ingest/hint 写 oo_locator。
+Sensor：/ingest/hint 写 oo_locator。
 
- Librarian：/kb/ingest + /kb/search（非 MVP 但可并行）。
+Librarian：/kb/ingest + /kb/search（非 MVP 但可并行）。
 
 结论：先做 Orchestrator → Planner → Gatekeeper → Executor → Verifier，用最少适配器跑通人工闭环；再补 Analyst/Sensor/Librarian，把闭环升级为“被动→主动→知识化”。这样每一步都有“可演示、可观测、可回滚”的价值增量，能快速把 AI OPS Agent 从概念落到可运行的产品骨架。

@@ -45,4 +45,3 @@ curl http://localhost:8080/metrics
 ```
 
 A healthy instance responds with `{ "status": "ok" }` at `/healthz` and standard metrics at `/metrics`.
-

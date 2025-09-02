@@ -1,6 +1,7 @@
 ## 模块 API 规划
 
 ### 数据流入口层
+
 - **pkg/oo**
   - API: `Stream(ctx, tenant, w, fn)`
   - 对应服务: `GET /oo/stream?tenant={id}&from={t1}&to={t2}`
@@ -12,6 +13,7 @@
   - 输出: 聚合后的指标 (Metrics1m, Calls5m 等)。
 
 ### 数据持久层
+
 - **pkg/pgw**
   - API: `Flush(ctx, tenant, w, out)`
   - 对应服务: `POST /pgw/flush`
@@ -26,6 +28,7 @@
   - 输出: `topo_edge_time` 时态表，支持差分。
 
 ### 定时任务
+
 - **jobs/ooagg**
   - 调用链: `pkg/oo → pkg/agg → pkg/pgw.Flush`
   - 调度: 每分钟触发，延迟 2 分钟。
@@ -47,6 +50,7 @@
   - 对应服务: `POST /jobs/topo/ansible/run`
 
 ### 配置/调度与事件
+
 - **pkg/events**
   - API: `/events/enqueue`
   - 对应服务: `POST /events/enqueue`
@@ -65,6 +69,7 @@
   - 输出: 入队窗口任务。
 
 ### 基础拓扑发现
+
 - **pkg/iac**
   - API: `Discover(ctx, tenant)`
   - 对应服务: `GET /topo/iac/discover?tenant={id}`

@@ -14,52 +14,49 @@ AGE 活跃调用图：以 service_call_5m 为源，刷新 AGE 图中 10 分钟�
 
 2. 项目目录（合并版）
 
-├─ etl/cmd/etl/               # 二进制入口/CLI
-│  └─ main.go
+├─ etl/cmd/etl/ # 二进制入口/CLI
+│ └─ main.go
 ├─ pkg/
-│  ├─ scheduler/              # 调度器（窗口计算/派发）
-│  ├─ runner/                 # Worker 池 + 执行/重试/回调
-│  ├─ registry/               # Job 接口 + 注册中心 + DAG
-│  ├─ store/                  # 状态/一次性保证/简易队列（PG）
-│  ├─ window/                 # 时间对齐/窗口工具
-│  ├─ events/                 # 事件入口（HTTP/CloudEvents风格）
-│  ├─ oo/                     # OO 读取（S3 客户端 + 查询 API 适配）
-│  ├─ agg/                    # 聚合器（指标1m / 调用5m / 指纹5m）
-│  ├─ patterns/               # 日志指纹挖掘（Drain / RE2）
-│  ├─ iac/                    # IaC/Cloud 归一（TF/Pulumi/aws/aliyun…）
-│  ├─ ansible/                # Playbook/Inventory 解析与依赖抽取
-│  └─ pgw/                    # PG 写入器（COPY 批量 + 幂等 upsert）
+│ ├─ scheduler/ # 调度器（窗口计算/派发）
+│ ├─ runner/ # Worker 池 + 执行/重试/回调
+│ ├─ registry/ # Job 接口 + 注册中心 + DAG
+│ ├─ store/ # 状态/一次性保证/简易队列（PG）
+│ ├─ window/ # 时间对齐/窗口工具
+│ ├─ events/ # 事件入口（HTTP/CloudEvents风格）
+│ ├─ oo/ # OO 读取（S3 客户端 + 查询 API 适配）
+│ ├─ agg/ # 聚合器（指标1m / 调用5m / 指纹5m）
+│ ├─ patterns/ # 日志指纹挖掘（Drain / RE2）
+│ ├─ iac/ # IaC/Cloud 归一（TF/Pulumi/aws/aliyun…）
+│ ├─ ansible/ # Playbook/Inventory 解析与依赖抽取
+│ └─ pgw/ # PG 写入器（COPY 批量 + 幂等 upsert）
 ├─ jobs/
-│  ├─ ooagg.go                # OO → metric_1m / call_5m / log_5m / locator
-│  ├─ age_refresh.go          # 近10分钟活跃调用图刷新（依赖 ooagg）
-│  ├─ topo_iac.go             # IaC/Cloud → topo_edge_time（时态差分）
-│  └─ topo_ansible.go         # Ansible → topo_edge_time（时态差分）
+│ ├─ ooagg.go # OO → metric_1m / call_5m / log_5m / locator
+│ ├─ age_refresh.go # 近10分钟活跃调用图刷新（依赖 ooagg）
+│ ├─ topo_iac.go # IaC/Cloud → topo_edge_time（时态差分）
+│ └─ topo_ansible.go # Ansible → topo_edge_time（时态差分）
 ├─ sql/
-│  └─ age_refresh.sql         # AGE 刷新 SQL
+│ └─ age_refresh.sql # AGE 刷新 SQL
 └─ configs/
-   └─ etl.yaml                # 调度/并发/延迟 配置
+└─ etl.yaml # 调度/并发/延迟 配置
 
 3. 表/模块总览（合并表）
 
-| 模块        | API/入口                       | SRC（输入）                                | DEST（输出）                                                                 | 窗口/键           | 幂等/唯一约束                       | 备注                                   |
-|-------------|--------------------------------|--------------------------------------------|-------------------------------------------------------------------------------|-------------------|-------------------------------------|----------------------------------------|
-| pkg/oo      | Stream(ctx, tenant, w, fn)    | OO（S3 分区或查询 API）logs/metrics/traces | 回调 oo.Record                                                                | w=[From,To)       | —                                   | 统一时间/URN；并发读取                 |
-| pkg/agg     | Feed(rec) / Drain()           | oo.Record                                  | Metrics1m / Calls5m / LogPatterns5m / PatternsUpsert / Locators               | 1m/5m             | —                                   | 内存桶聚合、指纹抽取                   |
-| pkg/pgw     | Flush(ctx, tenant, w, out)    | 聚合结果 out                               | metric_1m、service_call_5m、log_pattern_5m、log_pattern、oo_locator、dim_resource | 1m/5m 主键        | ON CONFLICT DO UPDATE；oo_locator 唯一 | PG 批量 COPY + Upsert                  |
-| jobs/ooagg  | Run(ctx, tenant, w)           | pkg/oo → pkg/agg                           | pkg/pgw.Flush                                                                 | Align=1m；Delay=2m | 由目标表主键保证                     | 成功后触发 age-refresh                 |
-| sql/age_refresh.sql | cypher('ops', ...)     | service_call_5m 近10分钟                   | AGE 图 CALLS 边                                                               | 10 分钟           | MERGE 唯一匹配                       | e.last_seen/rps/err/p95                |
-| jobs/age_refresh | Run(ctx, tenant, w)       | service_call_5m                            | 执行 SQL                                                                     | Align=5m           | —                                   | After()=["oo-agg"]                     |
-| pkg/iac     | Discover(ctx, tenant)         | TF/Pulumi/Cloud API                        | 边集合 []Edge                                                                 | —                 | —                                   | 构造 URN、relation                     |
-| pkg/ansible | ExtractDeps(ctx, tenant)      | inventory/group_vars/roles                 | 边集合 []Edge                                                                 | —                 | —                                   | 解析 upstream/连接串                   |
-| pkg/pgw     | UpsertTopoEdges(ctx, tenant, edges) | iac/ansible 边                           | topo_edge_time（时态）                                                        | valid tstzrange    | PK(tenant,src,dst,rel,valid)         | 差分开/关区间                          |
-| jobs/topo_iac | Run(ctx, tenant, w)         | pkg/iac.Discover                           | topo_edge_time                                                                | Align=15m          | —                                   | 结构拓扑                               |
-| jobs/topo_ansible | Run(ctx, tenant, w)     | pkg/ansible.ExtractDeps                    | topo_edge_time                                                                | Align=1h           | —                                   | 应用依赖拓扑                           |
-| pkg/events  | /events/enqueue               | CloudEvents/HTTP                           | etl_job_run 状态置 queued                                                     | 任意窗口           | ux_job_once                          | 手动补数/回放                          |
-| pkg/store   | EnqueueOnce/Mark*             | —                                          | etl_job_run                                                                   | job/tenant/window  | ux_job_once                          | 一次性保证/队列                        |
-| pkg/scheduler | Tick()                      | dim_tenant & etl_job_run                   | 入队窗口                                                                      | Align/Delay/Lookback | —                                  | 动态加载配置                           |
-
-
-
+| 模块                | API/入口                            | SRC（输入）                                | DEST（输出）                                                                      | 窗口/键              | 幂等/唯一约束                          | 备注                    |
+| ------------------- | ----------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- | -------------------- | -------------------------------------- | ----------------------- |
+| pkg/oo              | Stream(ctx, tenant, w, fn)          | OO（S3 分区或查询 API）logs/metrics/traces | 回调 oo.Record                                                                    | w=[From,To)          | —                                      | 统一时间/URN；并发读取  |
+| pkg/agg             | Feed(rec) / Drain()                 | oo.Record                                  | Metrics1m / Calls5m / LogPatterns5m / PatternsUpsert / Locators                   | 1m/5m                | —                                      | 内存桶聚合、指纹抽取    |
+| pkg/pgw             | Flush(ctx, tenant, w, out)          | 聚合结果 out                               | metric_1m、service_call_5m、log_pattern_5m、log_pattern、oo_locator、dim_resource | 1m/5m 主键           | ON CONFLICT DO UPDATE；oo_locator 唯一 | PG 批量 COPY + Upsert   |
+| jobs/ooagg          | Run(ctx, tenant, w)                 | pkg/oo → pkg/agg                           | pkg/pgw.Flush                                                                     | Align=1m；Delay=2m   | 由目标表主键保证                       | 成功后触发 age-refresh  |
+| sql/age_refresh.sql | cypher('ops', ...)                  | service_call_5m 近10分钟                   | AGE 图 CALLS 边                                                                   | 10 分钟              | MERGE 唯一匹配                         | e.last_seen/rps/err/p95 |
+| jobs/age_refresh    | Run(ctx, tenant, w)                 | service_call_5m                            | 执行 SQL                                                                          | Align=5m             | —                                      | After()=["oo-agg"]      |
+| pkg/iac             | Discover(ctx, tenant)               | TF/Pulumi/Cloud API                        | 边集合 []Edge                                                                     | —                    | —                                      | 构造 URN、relation      |
+| pkg/ansible         | ExtractDeps(ctx, tenant)            | inventory/group_vars/roles                 | 边集合 []Edge                                                                     | —                    | —                                      | 解析 upstream/连接串    |
+| pkg/pgw             | UpsertTopoEdges(ctx, tenant, edges) | iac/ansible 边                             | topo_edge_time（时态）                                                            | valid tstzrange      | PK(tenant,src,dst,rel,valid)           | 差分开/关区间           |
+| jobs/topo_iac       | Run(ctx, tenant, w)                 | pkg/iac.Discover                           | topo_edge_time                                                                    | Align=15m            | —                                      | 结构拓扑                |
+| jobs/topo_ansible   | Run(ctx, tenant, w)                 | pkg/ansible.ExtractDeps                    | topo_edge_time                                                                    | Align=1h             | —                                      | 应用依赖拓扑            |
+| pkg/events          | /events/enqueue                     | CloudEvents/HTTP                           | etl_job_run 状态置 queued                                                         | 任意窗口             | ux_job_once                            | 手动补数/回放           |
+| pkg/store           | EnqueueOnce/Mark\*                  | —                                          | etl_job_run                                                                       | job/tenant/window    | ux_job_once                            | 一次性保证/队列         |
+| pkg/scheduler       | Tick()                              | dim_tenant & etl_job_run                   | 入队窗口                                                                          | Align/Delay/Lookback | —                                      | 动态加载配置            |
 
 相关 PG 表（12 + ETL 元数据）
 
@@ -193,28 +190,24 @@ T10 — 观测指标与窗口滞后
 
 聚合正确性（1m 指标）
 
-SELECT metric, count(*), min(bucket), max(bucket)
+SELECT metric, count(_), min(bucket), max(bucket)
 FROM metric_1m
-GROUP BY metric ORDER BY count(*) DESC LIMIT 10;
-
+GROUP BY metric ORDER BY count(_) DESC LIMIT 10;
 
 活跃调用图 vs 源一致性
 
 WITH active AS (
-  SELECT src_resource_id, dst_resource_id
-  FROM service_call_5m
-  WHERE bucket >= now() - interval '10 minutes'
-  GROUP BY 1,2
+SELECT src_resource_id, dst_resource_id
+FROM service_call_5m
+WHERE bucket >= now() - interval '10 minutes'
+GROUP BY 1,2
 )
-SELECT count(*) AS edges_in_source FROM active;
+SELECT count(\*) AS edges_in_source FROM active;
 -- 再在 AGE 里查同样规模（CALLS 边数量），两者应近似一致（考虑租户过滤）
-
 
 拓扑时态闭环
 
 -- 当前有效边
-SELECT count(*) FROM topo_edge_time WHERE upper_inf(valid);
+SELECT count(_) FROM topo_edge_time WHERE upper_inf(valid);
 -- 历史边（已关闭）
-SELECT count(*) FROM topo_edge_time WHERE NOT upper_inf(valid);
-
-
+SELECT count(_) FROM topo_edge_time WHERE NOT upper_inf(valid);
