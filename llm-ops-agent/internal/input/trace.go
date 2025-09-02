@@ -2,7 +2,7 @@ package input
 
 import (
 	"github.com/yourname/XOpsAgent/internal/model"
-	"github.com/yourname/XOpsAgent/utils"
+	"github.com/yourname/XOpsAgent/internal/utils"
 )
 
 // FetchTraces retrieves trace data for a service within a time window.

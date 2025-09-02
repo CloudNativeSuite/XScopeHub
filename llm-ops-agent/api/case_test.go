@@ -1,21 +1,21 @@
 package api
 
 import (
-        "bytes"
-        "context"
-        "encoding/json"
-        "net/http"
-        "net/http/httptest"
-        "strconv"
-        "testing"
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
 
-        "github.com/gin-gonic/gin"
-        "github.com/google/uuid"
-        "github.com/jackc/pgx/v5"
-        "github.com/jackc/pgx/v5/pgtype"
-        db "github.com/yourname/XOpsAgent/db/sqlc"
-        "github.com/yourname/XOpsAgent/ports"
-        "github.com/yourname/XOpsAgent/workflow"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	db "github.com/yourname/XOpsAgent/db/sqlc"
+	"github.com/yourname/XOpsAgent/internal/ports"
+	"github.com/yourname/XOpsAgent/workflow"
 )
 
 type caseState struct {
@@ -24,8 +24,8 @@ type caseState struct {
 }
 
 type fakeService struct {
-        cases map[string]*caseState
-        idem  map[string]any
+	cases map[string]*caseState
+	idem  map[string]any
 }
 
 func newFakeService() *fakeService {
@@ -70,13 +70,12 @@ func (f *fakeService) Transition(ctx context.Context, args ports.TransitionArgs)
 	return row, nil
 }
 
-
 func setupRouter() (*gin.Engine, *fakeService) {
-        gin.SetMode(gin.TestMode)
-        r := gin.New()
-        svc := newFakeService()
-        RegisterRoutes(r, svc)
-        return r, svc
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	svc := newFakeService()
+	RegisterRoutes(r, svc)
+	return r, svc
 }
 
 func createCase(t *testing.T, r *gin.Engine) (string, int64) {
