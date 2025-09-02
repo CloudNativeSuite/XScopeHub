@@ -124,7 +124,7 @@ jobs:
             database_url: ''
             integration_setup: |
               docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=observe -p 5432:5432 postgres:15
-              docker run -d --name test-openobserve -e ZO_ROOT_USER_EMAIL=root@example.com -e ZO_ROOT_USER_PASSWORD=password -p 5080:5080 public.ecr.aws/u7k3z8u7/openobserve:latest
+              docker run -d --name test-openobserve -e ZO_ROOT_USER_EMAIL=root@example.com -e ZO_ROOT_USER_PASSWORD=password -p 5080:5080 openobserve/openobserve:latest-amd64
               sudo apt-get update && sudo apt-get install -y postgresql-client gettext-base
             integration_test_cmd: |
               export DATABASE_URL=postgres://postgres:postgres@localhost:5432/observe?sslmode=disable
