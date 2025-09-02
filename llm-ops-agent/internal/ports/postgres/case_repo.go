@@ -1,26 +1,26 @@
 package postgres
 
 import (
-        "context"
-        "encoding/json"
-        "time"
+	"context"
+	"encoding/json"
+	"time"
 
-        "github.com/jackc/pgx/v5"
-        "github.com/jackc/pgx/v5/pgtype"
-        "github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-        db "github.com/yourname/XOpsAgent/db/sqlc"
-        "github.com/yourname/XOpsAgent/ports"
-        "github.com/yourname/XOpsAgent/workflow"
+	db "github.com/yourname/XOpsAgent/db/sqlc"
+	"github.com/yourname/XOpsAgent/internal/ports"
+	"github.com/yourname/XOpsAgent/workflow"
 )
 
 type CaseRepository struct {
-        pool    *pgxpool.Pool
-        queries *db.Queries
+	pool    *pgxpool.Pool
+	queries *db.Queries
 }
 
 func NewCaseRepository(pool *pgxpool.Pool) *CaseRepository {
-        return &CaseRepository{pool: pool, queries: db.New(pool)}
+	return &CaseRepository{pool: pool, queries: db.New(pool)}
 }
 
 // CreateCase inserts a new case with initial state NEW and records timeline,

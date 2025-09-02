@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/yourname/XOpsAgent/analyzer"
+	"github.com/yourname/XOpsAgent/internal/analyzer"
 	"github.com/yourname/XOpsAgent/internal/input"
 	"github.com/yourname/XOpsAgent/internal/model"
 	"github.com/yourname/XOpsAgent/internal/output"
