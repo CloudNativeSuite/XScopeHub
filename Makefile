@@ -1,5 +1,6 @@
 .PHONY: build test clean run docker helm \
-	    build-llm build-obs test-llm test-obs clean-llm clean-obs run-obs docker-obs helm-obs
+            build-llm build-obs test-llm test-obs clean-llm clean-obs run-obs docker-obs helm-obs \
+            integration-tests integration-tests-llm integration-tests-obs
 
 LLM_DIR := llm-ops-agent
 OBS_DIR := observe-bridge
@@ -44,3 +45,11 @@ docker-obs:
 
 helm-obs:
 	$(MAKE) -C $(OBS_DIR) helm
+
+integration-tests: integration-tests-llm integration-tests-obs
+
+integration-tests-llm:
+	$(MAKE) -C $(LLM_DIR) integration-tests
+
+integration-tests-obs:
+	$(MAKE) -C $(OBS_DIR) integration-tests
