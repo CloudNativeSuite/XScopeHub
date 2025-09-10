@@ -74,6 +74,18 @@ oo_locator: one (or few) per window with query hints.
 
 Upsert via pgw.Flush (COPY batches + ON CONFLICT DO UPDATE).
 
+Data flow:
+
+OpenObserve's `/oo/stream` endpoint emits NDJSON records over Server-Sent Events. A client-side aggregator buckets records by time window and dimension, then flushes aggregates to Timescale/Postgres using idempotent UPSERTs. Resulting tables include `metric_1m`, `service_call_5m`, and `log_pattern_5m` as defined in `db/schema.sql`.
+
+Common access patterns:
+
+- **Streaming** – tail the latest error logs or feed alerts by calling `/oo/stream` with filters; results stream continuously like `tail -f`.
+- **Ad‑hoc statistics** – compute a service's 15‑minute P95 latency, log counts grouped by level, or average CPU usage with SQL queries against Timescale/Postgres tables.
+- **Live dashboards** – visualize the past hour and keep charts updating via periodic SQL polling or `/sql/stream` for streaming query results.
+
+Each API accepts parameters (time range, service, level, etc.) to control scope and cadence.
+
 4.2 Active CALLS Graph (AGE)
 
 Align 5m, After oo-agg.
