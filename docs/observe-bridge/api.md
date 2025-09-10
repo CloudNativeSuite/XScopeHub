@@ -10,7 +10,7 @@
     - `from`: 窗口起始时间 (RFC3339)。
     - `to`: 窗口结束时间 (RFC3339)。
   - 响应: HTTP `200`，返回以换行符分隔的 JSON 流，每行一个 `oo.Record`。
-  - 说明: 按窗口流式获取 OO (logs/metrics/traces)，回调 `fn(oo.Record)` 处理每条记录。
+  - 说明: 按窗口流式获取 OO 数据，`oo.Record` 中包含 `type=logs|metrics|traces` 字段，回调 `fn(oo.Record)` 处理每条记录。
 
 - **pkg/agg**
   - API: `Feed(rec) / Drain()`
