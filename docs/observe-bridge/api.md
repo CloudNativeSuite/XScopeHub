@@ -3,7 +3,7 @@
 ### 数据流入口层
 
 - **pkg/oo**
-  - API: `Stream(ctx, tenant, w, fn)`
+  - API: `Stream(ctx, endpoint, headers, tenant, w, fn)`
   - 对应服务: `GET /oo/stream?tenant={id}&from={t1}&to={t2}`
   - 请求参数:
     - `tenant`: 租户 ID。

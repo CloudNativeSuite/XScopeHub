@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/xscopehub/xscopehub/etl/pkg/window"
 )
@@ -16,12 +15,10 @@ type Record map[string]any
 
 // Stream reads logs, metrics, and traces for the tenant in the given window and invokes fn for each record.
 // It queries the OpenObserve OTEL HTTP API for each data type and streams NDJSON results.
-func Stream(ctx context.Context, tenant string, w window.Window, fn func(Record)) error {
-	endpoint := os.Getenv("OPENOBSERVE_URL")
+func Stream(ctx context.Context, endpoint string, headers map[string]string, tenant string, w window.Window, fn func(Record)) error {
 	if endpoint == "" {
-		return fmt.Errorf("OPENOBSERVE_URL not set")
+		return fmt.Errorf("openobserve endpoint not set")
 	}
-	auth := os.Getenv("OPENOBSERVE_AUTH")
 	client := http.Client{}
 	types := []string{"logs", "metrics", "traces"}
 	for _, typ := range types {
@@ -30,8 +27,8 @@ func Stream(ctx context.Context, tenant string, w window.Window, fn func(Record)
 		if err != nil {
 			return err
 		}
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
+		for k, v := range headers {
+			req.Header.Set(k, v)
 		}
 		req.Header.Set("Accept", "application/x-ndjson")
 		resp, err := client.Do(req)

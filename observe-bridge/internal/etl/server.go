@@ -30,7 +30,8 @@ type Server struct {
 
 // NewServer creates a server with basic health and metrics endpoints.
 func NewServer(cfg *config.Config) *Server {
-	r := gin.New()
+	s := &Server{engine: gin.New(), cfg: cfg}
+	r := s.engine
 	r.Use(gin.Logger())
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -39,7 +40,7 @@ func NewServer(cfg *config.Config) *Server {
 	r.StaticFile("/openapi.yaml", "etl/api/openapi.yaml")
 
 	// Dataflow entry
-	r.GET("/oo/stream", handleOOStream)
+	r.GET("/oo/stream", s.handleOOStream)
 	r.POST("/pgw/flush", handlePGWFlush)
 	r.POST("/pgw/topo/edges", handlePGWTopoEdges)
 
@@ -57,7 +58,7 @@ func NewServer(cfg *config.Config) *Server {
 	r.GET("/topo/iac/discover", handleIACDiscover)
 	r.GET("/topo/ansible/extract", handleAnsibleExtract)
 
-	return &Server{engine: r, cfg: cfg}
+	return s
 }
 
 func parseWindowParams(c *gin.Context) (window.Window, error) {
@@ -86,7 +87,7 @@ func parseWindowParams(c *gin.Context) (window.Window, error) {
 	return window.Window{From: from, To: to}, nil
 }
 
-func handleOOStream(c *gin.Context) {
+func (s *Server) handleOOStream(c *gin.Context) {
 	tenant := c.Query("tenant")
 	w, err := parseWindowParams(c)
 	if err != nil {
@@ -100,7 +101,7 @@ func handleOOStream(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 	c.Header("Content-Type", "application/x-ndjson")
-	if err := oo.Stream(c.Request.Context(), tenant, w, func(rec oo.Record) {
+	if err := oo.Stream(c.Request.Context(), s.cfg.Inputs.OpenObserve.Endpoint, s.cfg.Inputs.OpenObserve.Headers, tenant, w, func(rec oo.Record) {
 		data, err := json.Marshal(rec)
 		if err != nil {
 			return
