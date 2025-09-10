@@ -5,7 +5,12 @@
 - **pkg/oo**
   - API: `Stream(ctx, tenant, w, fn)`
   - 对应服务: `GET /oo/stream?tenant={id}&from={t1}&to={t2}`
-  - 说明: 按窗口流式获取 OO (logs/metrics/traces)，回调 fn(oo.Record)。
+  - 请求参数:
+    - `tenant`: 租户 ID。
+    - `from`: 窗口起始时间 (RFC3339)。
+    - `to`: 窗口结束时间 (RFC3339)。
+  - 响应: HTTP `200`，返回以换行符分隔的 JSON 流，每行一个 `oo.Record`。
+  - 说明: 按窗口流式获取 OO (logs/metrics/traces)，回调 `fn(oo.Record)` 处理每条记录。
 
 - **pkg/agg**
   - API: `Feed(rec) / Drain()`
