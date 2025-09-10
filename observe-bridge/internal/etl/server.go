@@ -1,9 +1,11 @@
 package etl
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -64,11 +66,20 @@ func parseWindowParams(c *gin.Context) (window.Window, error) {
 	if fromStr == "" || toStr == "" {
 		return window.Window{}, fmt.Errorf("missing from/to")
 	}
-	from, err := time.Parse(time.RFC3339, fromStr)
+	parse := func(s string) (time.Time, error) {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t, nil
+		}
+		if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return time.Unix(i, 0).UTC(), nil
+		}
+		return time.Time{}, fmt.Errorf("invalid time %s", s)
+	}
+	from, err := parse(fromStr)
 	if err != nil {
 		return window.Window{}, err
 	}
-	to, err := time.Parse(time.RFC3339, toStr)
+	to, err := parse(toStr)
 	if err != nil {
 		return window.Window{}, err
 	}
@@ -82,11 +93,23 @@ func handleOOStream(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := oo.Stream(c.Request.Context(), tenant, w, func(rec oo.Record) {}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming not supported"})
 		return
 	}
 	c.Status(http.StatusOK)
+	c.Header("Content-Type", "application/x-ndjson")
+	if err := oo.Stream(c.Request.Context(), tenant, w, func(rec oo.Record) {
+		data, err := json.Marshal(rec)
+		if err != nil {
+			return
+		}
+		c.Writer.Write(append(data, '\n'))
+		flusher.Flush()
+	}); err != nil {
+		c.Error(err)
+	}
 }
 
 func handlePGWFlush(c *gin.Context) {
