@@ -12,13 +12,40 @@
 - 用例描述: 按窗口流式获取指定租户的 OpenObserve 数据。
 - 请求示例:
   ```bash
-  curl -N "http://localhost:8080/oo/stream?tenant=demo&from=2024-01-01T00:00:00Z&to=2024-01-01T00:05:00Z"
+  curl -N "http://localhost:8090/oo/stream?tenant=demo&from=2024-01-01T00:00:00Z&to=2024-01-01T00:05:00Z"
   ```
-- 预期结果:
-  - 返回状态码 `200`。
-  - 响应体为按行分隔的 JSON 流，逐条输出 `oo.Record`。
-- 异常场景:
-  - 缺少 `tenant`/`from`/`to` 任一参数 -> 返回 `400`。
-  - `from` >= `to` 时返回空流或 `204`。
+  - 预期结果:
+    - 返回状态码 `200`。
+    - 响应体为按行分隔的 JSON 流，逐条输出 `oo.Record`。
+  - 异常场景:
+    - 缺少 `tenant`/`from`/`to` 任一参数 -> 返回 `400`。
+    - `from` >= `to` 时返回空流或 `204`。
+
+#### 查询日志（logs）
+
+- 命令示例：
+  ```bash
+  curl -N "http://localhost:8090/oo/stream?tenant=demo&from=2024-01-01T00:00:00Z&to=2024-01-01T00:05:00Z" \
+    | jq -c 'select(.type=="logs")'
+  ```
+- 预期：输出的每行 JSON 包含 `"type":"logs"` 字段。
+
+#### 查询指标（metrics）
+
+- 命令示例：
+  ```bash
+  curl -N "http://localhost:8090/oo/stream?tenant=demo&from=2024-01-01T00:00:00Z&to=2024-01-01T00:05:00Z" \
+    | jq -c 'select(.type=="metrics")'
+  ```
+- 预期：输出的每行 JSON 包含 `"type":"metrics"` 字段。
+
+#### 查询链路（traces）
+
+- 命令示例：
+  ```bash
+  curl -N "http://localhost:8090/oo/stream?tenant=demo&from=2024-01-01T00:00:00Z&to=2024-01-01T00:05:00Z" \
+    | jq -c 'select(.type=="traces")'
+  ```
+- 预期：输出的每行 JSON 包含 `"type":"traces"` 字段。
 
 如果需要更深入的测试，可编写集成测试或使用 go test（需在代码中提供相应的测试用例）
