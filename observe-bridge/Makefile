@@ -1,4 +1,4 @@
-.PHONY: all build test run docker helm clean init-db migrate integration-tests
+.PHONY: all build test run docker helm clean init-db migrate integration-tests test-oo-stream
 
 GO ?= go
 PG_URL ?= $(DATABASE_URL)
@@ -10,6 +10,10 @@ build:
 
 test:
 	$(GO) test ./...
+	$(MAKE) test-oo-stream
+
+test-oo-stream:
+	$(GO) test ./integration-test-cases -run TestOOStream -count=1
 
 run:    # 本地快速起网关（其余用 compose/helm）
 	./bin/observe-bridge --config ../config/observe-bridge-etl.yaml
