@@ -12,6 +12,18 @@ AGE 活跃调用图：以 service_call_5m 为源，刷新 AGE 图中 10 分钟�
 调度特性：窗口对齐 + 延迟容忍 + DAG 依赖 + 幂等 Upsert + 分片多租户。
 可靠性：PG 唯一索引保证一次性；指数退避重试；失败熔断；事件补数回放。
 
+数据流：
+
+OpenObserve 通过 `/oo/stream` 以 NDJSON/SSE 事件方式输出观测数据。客户端聚合器按时间窗与维度分桶，随后将聚合结果以幂等 UPSERT 写入 Timescale/Postgres，对应 `db/schema.sql` 中的 `metric_1m`、`service_call_5m`、`log_pattern_5m` 等表。
+
+常见访问模式：
+
+- **流式消费** —— 通过 `/oo/stream` 按查询参数筛选并持续推送结果，类似 `tail -f` 查看最新错误日志或喂给告警处理器。
+- **统计查询** —— 使用 Timescale/Postgres 执行 SQL，统计某服务 15 分钟 P95 延迟、按 level 聚合日志数量、CPU 平均值等。
+- **实时看板** —— 查看过去 1 小时并持续刷新，可周期性 SQL 轮询或使用 `/sql/stream` 获取流式结果。
+
+上述 API 均可通过参数控制时间范围、服务、级别等。
+
 2. 项目目录（合并版）
 
 ├─ etl/cmd/etl/ # 二进制入口/CLI
