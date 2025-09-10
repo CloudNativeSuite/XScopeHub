@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"os/exec"
 	"time"
 
@@ -40,8 +43,19 @@ func checkEndpoint(url string) error {
 	return nil
 }
 
-func checkRepo(url string) error {
-	cmd := exec.Command("git", "ls-remote", url)
+func checkRepo(repoURL, token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if token != "" {
+		if u, err := url.Parse(repoURL); err == nil {
+			u.User = url.UserPassword("token", token)
+			repoURL = u.String()
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", repoURL)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	return cmd.Run()
 }
 
@@ -86,7 +100,11 @@ func main() {
 
 			for _, repo := range cfg.Inputs.Ansible.Repos {
 				log.Printf("DEBUG: checking ansible repo %s (%s)", repo.ID, repo.URL)
-				if err := checkRepo(repo.URL); err != nil {
+				token := ""
+				if repo.Auth.TokenEnv != "" {
+					token = os.Getenv(repo.Auth.TokenEnv)
+				}
+				if err := checkRepo(repo.URL, token); err != nil {
 					log.Printf("WARN: ansible repo %s unreachable: %v", repo.ID, err)
 				} else {
 					log.Printf("INFO: ansible repo %s reachable", repo.ID)
