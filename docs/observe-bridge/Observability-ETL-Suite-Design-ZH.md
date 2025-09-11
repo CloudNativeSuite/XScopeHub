@@ -16,6 +16,16 @@ AGE 活跃调用图：以 service_call_5m 为源，刷新 AGE 图中 10 分钟�
 
 OpenObserve 通过 `/oo/stream` 以 NDJSON/SSE 事件方式输出观测数据。客户端聚合器按时间窗与维度分桶，随后将聚合结果以幂等 UPSERT 写入 Timescale/Postgres，对应 `db/schema.sql` 中的 `metric_1m`、`service_call_5m`、`log_pattern_5m` 等表。
 
+聚合结果会按租户与窗口缓存在内存中，可延后落库且不主动丢失。`scheduler.Tick` 定期清空缓冲并入队批量任务，由带重试的 `pgw.Flush` 写入 PG，保证每批数据只写一次。
+
+为避免重复封装查询，`/oo/stream` 提供**可配置的聚合流接口**。每条规则定义数据源（`logs`/`metrics`/`traces`）、过滤条件和聚合函数，例如：
+
+- `log_error_count` —— 统计 `level=error|fatal` 的日志条数；
+- `cpu_avg` —— 计算 `name=cpu_usage` 指标的平均值；
+- `latency_p95_ms` —— 计算 span 时延的 P95（毫秒）。
+
+规则存放于 `configs/oo-agg.yaml`（YAML/TOML），无需改动代码即可扩展。客户端通过单个 HTTP/2 连接订阅某条规则，随着 OpenObserve 的 `/_search_stream` 批次返回，桥接器会推送增量聚合结果。
+
 常见访问模式：
 
 - **流式消费** —— 通过 `/oo/stream` 按查询参数筛选并持续推送结果，类似 `tail -f` 查看最新错误日志或喂给告警处理器。

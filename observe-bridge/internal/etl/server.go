@@ -101,7 +101,7 @@ func (s *Server) handleOOStream(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 	c.Header("Content-Type", "application/x-ndjson")
-	if err := oo.Stream(c.Request.Context(), s.cfg.Inputs.OpenObserve.Endpoint, s.cfg.Inputs.OpenObserve.Headers, tenant, w, func(rec oo.Record) {
+	if err := oo.Stream(c.Request.Context(), s.cfg.Inputs.OpenObserve.Endpoint, s.cfg.Inputs.OpenObserve.Headers, tenant, w, true, func(rec oo.Record) {
 		data, err := json.Marshal(rec)
 		if err != nil {
 			return
@@ -183,11 +183,11 @@ func handleEventsEnqueue(c *gin.Context) {
 }
 
 func handleSchedulerTick(c *gin.Context) {
-	if err := scheduler.Tick(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.Status(http.StatusOK)
+        if err := scheduler.Tick(c.Request.Context()); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }
+        c.Status(http.StatusOK)
 }
 
 func handleIACDiscover(c *gin.Context) {
