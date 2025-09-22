@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [llm-ops-agent, observe-bridge]
+        component: [llm-ops-agent, observe-bridge, observe-gateway]
         platform: [linux, macos]
         arch: [amd64, arm64]
         include:
@@ -39,6 +39,11 @@ jobs:
             workdir: observe-bridge
             artifact_prefix: observe-bridge
             build_cmd: go build -o bin/observe-bridge ./cmd
+          - component: observe-gateway
+            go_mod: observe-gateway/go.mod
+            workdir: observe-gateway
+            artifact_prefix: observe-gateway
+            build_cmd: go build -o bin/observe-gateway ./cmd/gateway
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
       GOARCH: ${{ matrix.arch }}
@@ -79,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [llm-ops-agent, observe-bridge]
+        component: [llm-ops-agent, observe-bridge, observe-gateway]
         platform: [linux, macos]
         include:
           - component: llm-ops-agent
@@ -89,6 +94,10 @@ jobs:
           - component: observe-bridge
             go_mod: observe-bridge/go.mod
             workdir: observe-bridge
+            unit_test_cmd: go test ./...
+          - component: observe-gateway
+            go_mod: observe-gateway/go.mod
+            workdir: observe-gateway
             unit_test_cmd: go test ./...
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
@@ -109,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [llm-ops-agent, observe-bridge]
+        component: [llm-ops-agent, observe-bridge, observe-gateway]
         include:
           - component: llm-ops-agent
             go_mod: llm-ops-agent/go.mod
@@ -133,6 +142,13 @@ jobs:
               make integration-tests
             integration_teardown: |
               docker rm -f test-postgres test-openobserve
+          - component: observe-gateway
+            go_mod: observe-gateway/go.mod
+            workdir: observe-gateway
+            database_url: ''
+            integration_setup: ''
+            integration_test_cmd: go test ./...
+            integration_teardown: ''
     env:
       GOOS: linux
       GOARCH: amd64
@@ -158,7 +174,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [llm-ops-agent, observe-bridge]
+        component: [llm-ops-agent, observe-bridge, observe-gateway]
         platform: [linux, macos]
         arch: [amd64, arm64]
         include:
@@ -166,6 +182,8 @@ jobs:
             workdir: llm-ops-agent
           - component: observe-bridge
             workdir: observe-bridge
+          - component: observe-gateway
+            workdir: observe-gateway
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
       GOARCH: ${{ matrix.arch }}
