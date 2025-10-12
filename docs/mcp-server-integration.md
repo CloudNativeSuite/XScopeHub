@@ -111,9 +111,50 @@ mcp-server/
 - **Resilience**: Workflow `state.go` supports resume/replay semantics similar to the "不丢包" guarantees described in `docs/architecture.md` for telemetry pipelines.
 - **Extensibility**: The plugins folder outlines where additional MCP bridges (e.g., Kubernetes, advanced monitoring) will land, ensuring the repository remains the central integration point for both data plane and control plane automation.
 
+## Subtask Breakdown
+
+| Subtask ID | Scope | Key Deliverables | Dependencies |
+|------------|-------|------------------|--------------|
+| **MCP-01** | `cmd/mcp` CLI bootstrap | Implement `main.go`, `serve.go`, `run.go`, `deploy.go`, and `version.go` with Cobra commands that wire into hub services. | Go module initialisation, shared logging utilities from `pkg/ui`. |
+| **MCP-02** | `internal/mcp` protocol core | Build JSON-RPC server/client wrappers, registry dispatch, authentication guards, and structured logging helpers. | MCP-01 command wiring for invocation, shared config loader. |
+| **MCP-03** | `internal/hub` workflow runtime | Author workflow/state/audit/policy/metrics modules with pluggable storage and Prometheus exporters. | MCP-02 registry contracts, repository observability schemas. |
+| **MCP-04** | `internal/plugins` adapters | Deliver plugin implementations for Chrome, Ansible, GitHub, IaC, monitor, LLM, and K8s stubs, each satisfying hub plugin interfaces. | MCP-03 plugin interfaces, external service credentials. |
+| **MCP-05** | `pkg` shared utilities | Provide command execution, file IO, templating, and CLI UI helpers reused by CLI and hub layers. | MCP-01/02 consumers requiring helpers. |
+| **MCP-06** | `configs` authoring | Populate hub configuration, logging profiles, policy definitions, and baseline workflows aligned with existing repos. | MCP-01 CLI loaders, policy enforcement in MCP-03. |
+| **MCP-07** | `scripts` & tooling | Add install/run scripts, Makefile targets, and container entrypoints for local/dev deployment. | MCP-01 for CLI entry, MCP-06 configs. |
+| **MCP-08** | Documentation | Extend README and new runbooks describing operator flows and integration touchpoints. | Completion of preceding subtasks for accurate docs. |
+
+## Implementation Milestones
+
+1. **Milestone A – Control Plane Skeleton (MCP-01, MCP-02, MCP-05)**
+   - Initialise Go module, scaffold CLI commands, and create protocol/client/server abstractions.
+   - Validate JSON-RPC messaging with mocked downstream agents.
+2. **Milestone B – Hub Runtime (MCP-03, MCP-04)**
+   - Implement workflow execution, persistence, policy enforcement, and plugin contracts.
+   - Integrate Chrome, GitHub, and LLM plugins; leave IaC/K8s behind feature flags if endpoints unavailable.
+3. **Milestone C – Configuration & Ops (MCP-06, MCP-07, MCP-08)**
+   - Ship production-ready configs, scripts, and operator documentation.
+   - Ensure audit/policy artefacts align with existing RBAC docs.
+
+## Validation & Testing Plan
+
+1. **Static Analysis & Linting**
+   - Run `go fmt ./...` and `golangci-lint run ./...` across `mcp-server/` to enforce formatting and lint rules.
+   - Execute `npm run lint` for any JavaScript-based tooling included in scripts or UI helpers.
+2. **Unit Tests**
+   - Implement table-driven tests for protocol serialization (`internal/mcp/protocol_test.go`), registry routing, and auth layers; execute with `go test ./internal/mcp/...`.
+   - Cover workflow execution branches, policy evaluation, and plugin mocks via `go test ./internal/hub/... ./internal/plugins/...`.
+3. **Integration Tests**
+   - Provide smoke tests that spin up the CLI server using `go test ./cmd/mcp -run TestServeSmoke -tags=integration` with embedded JSON-RPC loopback.
+   - Exercise workflow YAMLs using fixture repos for GitHub and stubbed Chrome sessions.
+4. **End-to-End Validation**
+   - Use `make run-mcp` (new Makefile target) to boot the hub alongside `observe-bridge` in docker-compose; confirm Prometheus metrics and audit logs are emitted.
+   - Execute representative workflows (`dev-ci-pr.yaml`, `ops-deploy-ansible.yaml`) and verify downstream agents receive calls via log inspection.
+5. **Documentation Review**
+   - Cross-check README/runbooks for accuracy after each milestone; ensure commands and configs mirror shipped artefacts.
+
 ## Next Steps
 
-1. Implement the MCP server/client scaffolding under `internal/mcp/` and expose it through `cmd/mcp serve`.
-2. Define initial workflows in `configs/workflows/` that automate the existing ETL jobs plus LLM code/ops triage tasks.
-3. Connect `internal/plugins/monitor.go` to the observability metrics emitted by `observe-bridge`.
-4. Document end-to-end runbooks showing how MCP-driven automation closes the loop between detection, reasoning, code fixes, and remediation.
+1. Implement subtasks **MCP-01** through **MCP-03** to deliver the control-plane baseline and unblock protocol consumers.
+2. Progress to **MCP-04** and **MCP-05** to enable plugin integrations and shared utilities leveraged by CLI workflows.
+3. Finalise **MCP-06** through **MCP-08**, producing configuration bundles, automation scripts, and comprehensive runbooks.
