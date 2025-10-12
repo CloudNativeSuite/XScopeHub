@@ -53,6 +53,7 @@ LG ─┘
 - [Roadmap](docs/roadmap.md)
 - [Deployment](docs/deployment.md)
 - [Grafana](docs/grafana.md)
+- [MCP Server Integration](docs/mcp-server-integration.md)
 - LLM-Ops Agent
   - [Overview](docs/llm-ops-agent/overview.md)
   - [API](docs/llm-ops-agent/api.md)
@@ -114,6 +115,7 @@ LG ─┘
 - [路线图](docs/roadmap.md)
 - [部署](docs/deployment.md)
 - [Grafana](docs/grafana.md)
+- [MCP Server 集成设计](docs/mcp-server-integration.md)
 - LLM 运维代理
   - [概览](docs/llm-ops-agent/overview.md)
   - [API](docs/llm-ops-agent/api.md)
