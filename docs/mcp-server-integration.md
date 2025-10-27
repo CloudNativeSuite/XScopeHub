@@ -158,3 +158,27 @@ mcp-server/
 1. Implement subtasks **MCP-01** through **MCP-03** to deliver the control-plane baseline and unblock protocol consumers.
 2. Progress to **MCP-04** and **MCP-05** to enable plugin integrations and shared utilities leveraged by CLI workflows.
 3. Finalise **MCP-06** through **MCP-08**, producing configuration bundles, automation scripts, and comprehensive runbooks.
+
+## Quickstart Skeleton
+
+The repository now includes a lightweight reference implementation under `mcp-server/` that exposes the JSON-RPC surface
+documented above. It focuses on the `serve` entrypoint and a manifest printer so that downstream MCP clients can already
+discover and exercise the basic contracts.
+
+```bash
+cd mcp-server
+go test ./...
+go run ./cmd/mcp serve --addr :8000
+```
+
+With the server running, issue JSON-RPC POST requests against `http://localhost:8000/mcp`:
+
+```bash
+curl -X POST http://localhost:8000/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"resources/list"}'
+```
+
+The static registry responds with sample `logs`, `metrics`, and `alerts` resources along with two placeholder tools
+(`query_logs` and `summarize_alerts`). These stubs illustrate how real data providers and workflow executors can be wired
+in during subsequent milestones without blocking client integrations today.
