@@ -179,6 +179,6 @@ curl -X POST http://localhost:8000/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"resources/list"}'
 ```
 
-The static registry responds with sample `logs`, `metrics`, and `alerts` resources along with two placeholder tools
-(`query_logs` and `summarize_alerts`). These stubs illustrate how real data providers and workflow executors can be wired
-in during subsequent milestones without blocking client integrations today.
+The static registry responds with sample `logs`, `metrics`, `traces`, `topology`, and `knowledge` resources along with two
+placeholder tools (`query_logs` and `summarize_alerts`). These stubs illustrate how real data providers and workflow
+executors can be wired in during subsequent milestones without blocking client integrations today.

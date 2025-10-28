@@ -121,11 +121,76 @@ func StaticResources() []types.ResourcePayload {
 			},
 		},
 		{
-			Name:        "alerts",
-			Description: "Active alerts across the platform",
+			Name:        "traces",
+			Description: "Representative traces with dependency context",
 			Data: []map[string]interface{}{
-				{"id": "alert-ops-1", "severity": "critical", "summary": "OpenObserve ingestion stalled"},
-				{"id": "alert-ops-2", "severity": "warning", "summary": "Vector agent backpressure"},
+				{
+					"trace_id":       "84dd9a5c9f8c1f7b",
+					"root_service":   "observe-gateway",
+					"entry_span":     "HTTP GET /api/query",
+					"duration_ms":    342,
+					"status":         "ok",
+					"critical_path":  []string{"observe-gateway", "observe-bridge", "openobserve"},
+					"error_spans":    []interface{}{},
+					"correlated_log": "2024-01-01T00:05:01Z",
+				},
+				{
+					"trace_id":       "3b0fb66c41a2b3de",
+					"root_service":   "llm-ops-agent",
+					"entry_span":     "POST /v1/insight",
+					"duration_ms":    1280,
+					"status":         "error",
+					"critical_path":  []string{"llm-ops-agent", "observe-bridge", "postgres"},
+					"error_spans":    []string{"pg-writer"},
+					"correlated_log": "2024-01-01T00:07:11Z",
+				},
+			},
+		},
+		{
+			Name:        "topology",
+			Description: "Service, network, and infrastructure relationships",
+			Data: map[string]interface{}{
+				"service": []map[string]interface{}{
+					{"from": "observe-gateway", "to": "observe-bridge", "edge": "CALLS"},
+					{"from": "observe-bridge", "to": "postgres", "edge": "WRITES"},
+				},
+				"deployment": []map[string]interface{}{
+					{"service": "observe-gateway", "pod": "gw-67f6b", "node": "worker-a1", "rev": "sha256:abc"},
+					{"service": "observe-bridge", "pod": "bridge-12ea4", "node": "worker-b4", "rev": "sha256:def"},
+				},
+				"network": []map[string]interface{}{
+					{"source": "gw-67f6b", "dest": "bridge-12ea4", "flow_per_s": 2150},
+					{"source": "bridge-12ea4", "dest": "postgres", "flow_per_s": 480},
+				},
+				"infrastructure": []map[string]interface{}{
+					{"node": "worker-a1", "subnet": "10.0.1.0/24", "zone": "us-east-1a", "account": "prod"},
+					{"node": "worker-b4", "subnet": "10.0.2.0/24", "zone": "us-east-1b", "account": "prod"},
+				},
+			},
+		},
+		{
+			Name:        "knowledge",
+			Description: "Contextual knowledge spanning alerts, incidents, configs, and runbooks",
+			Data: map[string]interface{}{
+				"alerts": []map[string]interface{}{
+					{"id": "alert-ops-1", "severity": "critical", "summary": "OpenObserve ingestion stalled", "trace_id": "3b0fb66c41a2b3de"},
+					{"id": "alert-ops-2", "severity": "warning", "summary": "Vector agent backpressure", "node": "worker-b4"},
+				},
+				"incidents": []map[string]interface{}{
+					{"id": "inc-20240101-1", "status": "mitigated", "primary_service": "observe-bridge", "started_at": "2024-01-01T00:06:00Z", "ended_at": "2024-01-01T00:20:00Z"},
+				},
+				"runbooks": []map[string]interface{}{
+					{"id": "rb-ob-restore", "title": "Restore ObserveBridge ingestion", "service": "observe-bridge", "link": "https://wiki.example.com/runbooks/ob-restore"},
+				},
+				"config": []map[string]interface{}{
+					{"id": "cfg-gateway-20240101", "component": "observe-gateway", "change": "Increased rate limit to 20rps", "git_ref": "main@c1d2e3"},
+				},
+				"change_records": []map[string]interface{}{
+					{"id": "chg-221", "submitted_by": "sre-bot", "summary": "Rolled out vector agent 0.28", "window": "2024-01-01T00:00:00Z/2024-01-01T00:30:00Z"},
+				},
+				"cmdb": []map[string]interface{}{
+					{"id": "svc-observe-bridge", "owner": "platform", "tier": "critical", "dependencies": []string{"postgres", "openobserve"}},
+				},
 			},
 		},
 	}
