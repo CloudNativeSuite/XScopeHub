@@ -3,18 +3,20 @@
 ### 数据流入口层
 
 - **pkg/oo**
-  - API: `Stream(ctx, endpoint, headers, tenant, w, fn)`
-  - 对应服务: `GET /oo/stream?tenant={id}&from={t1}&to={t2}`
+  - API: `Stream(ctx, tenant, rule, w, fn)`
+  - 对应服务: `GET /oo/stream/{rule}?tenant={id}&from={t1}&to={t2}`
   - 请求参数:
     - `tenant`: 租户 ID。
+    - `rule`: 聚合规则名称，例如 `log_error_count`、`cpu_avg`、`latency_p95_ms`。
     - `from`: 窗口起始时间 (RFC3339)。
     - `to`: 窗口结束时间 (RFC3339)。
-  - 响应: HTTP `200`，返回以换行符分隔的 JSON 流，每行一个 `oo.Record`。
-  - 说明: 按窗口流式获取 OO 数据，`oo.Record` 中包含 `type=logs|metrics|traces` 字段，回调 `fn(oo.Record)` 处理每条记录。
+  - 响应: HTTP `200`，返回以换行符分隔的 JSON 流，每行一个 `{"ts":"...","value":...}` 聚合点。
+  - 说明: 提供可配置的聚合流接口，通过配置文件定义规则，避免重复封装查询。
 
 - **pkg/agg**
   - API: `Feed(rec) / Drain()`
   - 内部接口: gRPC/Channel 调用，不直接暴露。
+  - 行为: 按租户与窗口缓存聚合结果，`Drain()` 返回 map 供调度器入队，确保每条结果写一次。
   - 输出: 聚合后的指标 (Metrics1m, Calls5m 等)。
 
 ### 数据持久层
@@ -63,15 +65,14 @@
   - 动作: 状态置 `etl_job_run=queued`
 
 - **pkg/store**
-  - API: `EnqueueOnce/Mark*`
+  - API: `EnqueueOnce/Dequeue/MarkDone`
   - 对应服务: 内部库调用
   - 保证: `ux_job_once`，避免重复入队。
 
 - **pkg/scheduler**
-  - API: `Tick()`
+  - API: `Tick(ctx)`
   - 对应服务: `POST /scheduler/tick`
-  - 输入: `dim_tenant & etl_job_run`
-  - 输出: 入队窗口任务。
+  - 动作: 从 `agg` Drain 结果入队并调用 `pgw.Flush` 批量写入，支持重试。
 
 ### 基础拓扑发现
 

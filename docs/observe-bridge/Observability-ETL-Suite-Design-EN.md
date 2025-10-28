@@ -78,6 +78,16 @@ Data flow:
 
 OpenObserve's `/oo/stream` endpoint emits NDJSON records over Server-Sent Events. A client-side aggregator buckets records by time window and dimension, then flushes aggregates to Timescale/Postgres using idempotent UPSERTs. Resulting tables include `metric_1m`, `service_call_5m`, and `log_pattern_5m` as defined in `db/schema.sql`.
 
+Aggregates are buffered per tenant/window so they can be written later without loss. `scheduler.Tick` drains these buffers, enqueues batch jobs and invokes `pgw.Flush` with retry logic so each batch is persisted exactly once.
+
+To avoid duplicating query logic, `/oo/stream` exposes **named aggregation streams** driven by configuration. Each rule defines the source (`logs` | `metrics` | `traces`), optional filters, and an aggregation function. Examples:
+
+- `log_error_count` – count of log records where `level` is `error` or `fatal`.
+- `cpu_avg` – average `value` for metric points with `name = 'cpu_usage'`.
+- `latency_p95_ms` – P95 of span `duration` in milliseconds.
+
+Rules live in `configs/oo-agg.yaml` (YAML/TOML) and can be extended without code changes. Clients subscribe to a rule over a single HTTP/2 connection, and the bridge streams partial results as OpenObserve's `/_search_stream` returns batches.
+
 Common access patterns:
 
 - **Streaming** – tail the latest error logs or feed alerts by calling `/oo/stream` with filters; results stream continuously like `tail -f`.
